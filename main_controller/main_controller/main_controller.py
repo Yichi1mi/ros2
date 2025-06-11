@@ -33,18 +33,22 @@ def main():
         
         try:
             # Set speed
-            robot.set_speed(30)  # 30% speed
+            robot.set_speed(50)  # 50% speed
             
             # Queue some joint movements
             print("Queueing movements...")
             positions = [
-                [0.0, -1.57, 0.0, -1.57, 0.0, 0.0],      # Home
-                [0.785, -1.57, 0.0, -1.57, 0.0, 0.0],    # 45 deg
-                [1.57, -1.57, 0.0, -1.57, 0.0, 0.0],     # 90 deg
-                [0.0, -1.57, 0.0, -1.57, 0.0, 0.0],      # Back to Home
+                [2.0, -1.57, 0.0, -1.57, 0.0, 0.0],
+                [1.0, -1.57, 0.0, -1.57, 0.0, 0.0],
+                [1.57, -1.57, 0.0, 0.0, 0.0, 0.0],
+                [0.785, 0.0, 0.0, -1.57, 0.0, 0.0],
+                [0.0, -1.57, 0.0, -1.57, 0.0, 0.0],
             ]
             for idx, pos in enumerate(positions):
-                robot.move_to_joint_positions(pos, f"Move {idx+1}")
+                print(f"Moving to position {idx} ...")
+                # 保证所有元素都是float
+                pos_float = [float(x) for x in pos]
+                robot.move_to_joint_positions(pos_float)
 
             # Start execution (no-op, for compatibility)
             print("Starting execution...")

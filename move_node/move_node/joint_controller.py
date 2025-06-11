@@ -163,7 +163,7 @@ class JointController(RobotConnectionBase):
     
 def main(args=None):
     """
-    Test the joint controller with single commands (no queue).
+    Unit test for JointController (single command, no queue).
     """
     rclpy.init(args=args)
     try:
@@ -172,27 +172,18 @@ def main(args=None):
             controller.set_velocity_percentage(30)
             controller.set_position_tolerance(0.02)
 
-            # Define test positions
-            home_pos = [0.0, -1.57, 0.0, -1.57, 0.0, 0.0]
-            pos1 = [0.785, -1.57, 0.0, -1.57, 0.0, 0.0]
-            pos2 = [1.57, -1.57, 0.0, -1.57, 0.0, 0.0]
+            # 测试用点位，仅供开发自测
+            test_positions = [
+                ([0.0, -1.57, 0.0, -1.57, 0.0, 0.0], "Moving to home..."),
+                ([0.785, -1.57, 0.0, -1.57, 0.0, 0.0], "Moving to 45 degrees..."),
+                ([1.57, -1.57, 0.0, -1.57, 0.0, 0.0], "Moving to 90 degrees..."),
+                ([0.0, -1.57, 0.0, -1.57, 0.0, 0.0], "Returning home..."),
+            ]
 
-            # Execute single movements with 0.5s pause between each
-            print("Moving to home...")
-            controller.move_to_joint_positions(home_pos)
-            time.sleep(0.5)
-
-            print("Moving to 45 degrees...")
-            controller.move_to_joint_positions(pos1)
-            time.sleep(0.5)
-
-            print("Moving to 90 degrees...")
-            controller.move_to_joint_positions(pos2)
-            time.sleep(0.5)
-
-            print("Returning home...")
-            controller.move_to_joint_positions(home_pos)
-            time.sleep(0.5)
+            for pos, msg in test_positions:
+                print(msg)
+                if controller.move_to_joint_positions(pos):
+                    time.sleep(0.5)
 
             print("Test completed successfully!")
         else:
