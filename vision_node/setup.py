@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'my_moveit_planner'
+package_name = 'vision_node'
 
 setup(
     name=package_name,
@@ -15,11 +15,11 @@ setup(
     zip_safe=True,
     maintainer='xichen',
     maintainer_email='x93hu@uwaterloo.ca',
-    description='机械臂控制包',
-    license='Apache-2.0',
+    description='TODO: Package description',
+    license='TODO: License declaration',
+    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'joint_controller = my_moveit_planner.joint_controller:main',
         ],
     },
 )

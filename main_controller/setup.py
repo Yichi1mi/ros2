@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'my_vision_node'
+package_name = 'main_controller'
 
 setup(
     name=package_name,
