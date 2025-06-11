@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-joint_controller.py - Joint control using robot_common base classes
+joint_controller.py - Simplified joint control for single movement execution
+Only handles direct joint movements, no queue management
 """
 
 import rclpy

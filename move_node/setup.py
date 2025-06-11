@@ -11,7 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'robot_common'],
     zip_safe=True,
     maintainer='xichen',
     maintainer_email='x93hu@uwaterloo.ca',
