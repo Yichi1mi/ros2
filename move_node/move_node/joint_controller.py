@@ -353,9 +353,14 @@ class JointController(Node):
                     final_check = self._check_position_reached(joint_angles, tolerance=max(self._position_tolerance, 0.02))
                     if final_check:
                         self.get_logger().info(f'Movement completed successfully: {description}')
+                        # Wait 0.5s before next movement
+                        time.sleep(0.5)
+                        self.get_logger().info('Ready for next movement')
                     else:
                         self.get_logger().warn(f'Action reports success but final position check shows deviation: {description}')
                         self.get_logger().info('Accepting result based on action server feedback')
+                        # Still wait even if position check shows deviation
+                        time.sleep(0.5)
                 else:
                     error_codes = {
                         -1: "INVALID_GOAL",
