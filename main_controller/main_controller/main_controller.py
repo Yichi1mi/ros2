@@ -6,53 +6,66 @@ main_controller.py - Simple main controller using robot API
 import sys
 import os
 import time
+import rclpy
 
-# Add move_node to path - 修改这里
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'move_node', 'move_node'))
+# Add the correct path to find robot_arm_controller
+current_dir = os.path.dirname(os.path.abspath(__file__))
+move_node_dir = os.path.join(current_dir, '..', '..', 'move_node', 'move_node')
+sys.path.insert(0, move_node_dir)
 
-# 直接 import，不需要从 robot_arm_controller import
-import robot_arm_controller
+from robot_arm_controller import RobotArmController
 
 def main():
-    print("=" * 50)
-    print("Starting main controller")
-    print("=" * 50)
-    
-    # Create robot - 修改这里
-    robot = robot_arm_controller.RobotArmController()
-    
-    # 其他代码保持不变
-    if not robot.is_connected():
-        print("Failed to connect to robot arm")
-        return
-    
-    print("Robot connected successfully!")
-    
+    rclpy.init()
     try:
-        robot.set_speed(30)
+        print("=" * 50)
+        print("Starting main controller")
+        print("=" * 50)
         
-        print("Queueing movements...")
-        robot.move_to_home()
-        robot.rotate_base_degrees(45)
-        robot.rotate_base_degrees(90)
-        robot.rotate_base_degrees(-45)
-        robot.move_to_home()
+        # Create robot
+        robot = RobotArmController()
         
-        print("Starting execution...")
-        robot.start_execution()
+        if not robot.is_connected():
+            print("Failed to connect to robot arm")
+            return
         
-        print("Waiting for completion...")
-        if robot.wait_for_completion():
-            print("All movements completed!")
-        else:
-            print("Timeout waiting for completion")
+        print("Robot connected successfully!")
         
-    except KeyboardInterrupt:
-        print("User interrupted")
-        robot.stop_execution()
-        robot.clear_queue()
+        try:
+            # Set speed
+            robot.set_speed(30)  # 30% speed
+            
+            # Queue some joint movements
+            print("Queueing movements...")
+            positions = [
+                [0.0, -1.57, 0.0, -1.57, 0.0, 0.0],      # Home
+                [0.785, -1.57, 0.0, -1.57, 0.0, 0.0],    # 45 deg
+                [1.57, -1.57, 0.0, -1.57, 0.0, 0.0],     # 90 deg
+                [0.0, -1.57, 0.0, -1.57, 0.0, 0.0],      # Back to Home
+            ]
+            for idx, pos in enumerate(positions):
+                robot.move_to_joint_positions(pos, f"Move {idx+1}")
+
+            # Start execution (no-op, for compatibility)
+            print("Starting execution...")
+            robot.start_execution()
+            
+            # Wait for completion
+            print("Waiting for completion...")
+            if robot.wait_for_completion():
+                print("All movements completed!")
+            else:
+                print("Timeout waiting for completion")
+            
+        except KeyboardInterrupt:
+            print("User interrupted")
+            robot.stop_execution()
+            robot.clear_queue()
+        
+        print("Main controller finished")
     
-    print("Main controller finished")
+    finally:
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

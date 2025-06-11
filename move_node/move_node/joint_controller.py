@@ -15,7 +15,10 @@ import time
 from robot_common import RobotConnectionBase, RobotStateManager
 
 class JointController(RobotConnectionBase):
-    """Controller for joint-space movements"""
+    """
+    Controller for single joint-space movement.
+    Only handles direct joint movements, no queue management.
+    """
     
     def __init__(self):
         # Joint configuration
@@ -52,7 +55,7 @@ class JointController(RobotConnectionBase):
     
     def move_to_joint_positions(self, target_positions, wait_for_completion=True):
         """
-        Execute movement to target joint positions
+        Execute movement to target joint positions (blocking).
         
         Args:
             target_positions: List of 6 joint angles in radians
@@ -157,45 +160,43 @@ class JointController(RobotConnectionBase):
                 self.get_logger().info('Position reached despite timeout')
                 return True
             return False
-
-def main(args=None):
-    """Test the joint controller"""
-    rclpy.init(args=args)
     
+def main(args=None):
+    """
+    Test the joint controller with single commands (no queue).
+    """
+    rclpy.init(args=args)
     try:
         controller = JointController()
-        
         if controller.is_connected():
-            # Test movements
             controller.set_velocity_percentage(30)
             controller.set_position_tolerance(0.02)
-            
+
             # Define test positions
             home_pos = [0.0, -1.57, 0.0, -1.57, 0.0, 0.0]
             pos1 = [0.785, -1.57, 0.0, -1.57, 0.0, 0.0]
             pos2 = [1.57, -1.57, 0.0, -1.57, 0.0, 0.0]
-            
-            # Execute movements
+
+            # Execute single movements with 0.5s pause between each
             print("Moving to home...")
-            if controller.move_to_joint_positions(home_pos):
-                print("✓ Home position reached")
-            
-            print("\nMoving to 45 degrees...")
-            if controller.move_to_joint_positions(pos1):
-                print("✓ 45 degrees position reached")
-            
-            print("\nMoving to 90 degrees...")
-            if controller.move_to_joint_positions(pos2):
-                print("✓ 90 degrees position reached")
-            
-            print("\nReturning home...")
-            if controller.move_to_joint_positions(home_pos):
-                print("✓ Returned to home")
-            
-            print("\nTest completed successfully!")
+            controller.move_to_joint_positions(home_pos)
+            time.sleep(0.5)
+
+            print("Moving to 45 degrees...")
+            controller.move_to_joint_positions(pos1)
+            time.sleep(0.5)
+
+            print("Moving to 90 degrees...")
+            controller.move_to_joint_positions(pos2)
+            time.sleep(0.5)
+
+            print("Returning home...")
+            controller.move_to_joint_positions(home_pos)
+            time.sleep(0.5)
+
+            print("Test completed successfully!")
         else:
             print("Failed to connect to robot")
-        
     except KeyboardInterrupt:
         print("\nTest interrupted by user")
     finally:
