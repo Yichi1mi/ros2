@@ -11,12 +11,18 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'opencv-python',
+        'numpy',
+        'sensor_msgs',
+        'cv_bridge',
+    ],
     zip_safe=True,
     maintainer='xichen',
     maintainer_email='x93hu@uwaterloo.ca',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Computer vision node for robot control',
+    license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

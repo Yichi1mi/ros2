@@ -20,7 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'joint_controller = move_node.joint_controller:main',
-            'robot_arm_api = move_node.robot_arm_controller:demo_usage',
+            'position_controller = move_node.position_controller:main',
         ],
     },
 )
