@@ -95,9 +95,13 @@ class PositionController(RobotConnectionBase):
             geometry_msgs.msg.Pose: Current pose or None if unavailable
         """
         try:
-            # Get current joint positions
+            # Get current joint positions - ensure we have fresh data
+            import time
+            time.sleep(0.05)  # Brief wait for fresh joint state
+            
             current_joints = self._state_manager.get_current_joint_positions()
             if current_joints is None:
+                self.get_logger().warning('No joint positions available for FK')
                 return None
             
             # Create FK request
@@ -230,14 +234,30 @@ class PositionController(RobotConnectionBase):
         Returns:
             bool: True if movement was successful
         """
-        # Get current joint angles (raw sensor data)
-        current_joints = self._state_manager.get_current_joint_positions()
+        # Force refresh of joint state - wait a bit for state to update
+        import time
+        time.sleep(0.1)  # Give time for joint states to update
+        
+        # Get current joint angles (raw sensor data) - try multiple times if needed
+        current_joints = None
+        for attempt in range(5):
+            current_joints = self._state_manager.get_current_joint_positions()
+            if current_joints is not None:
+                break
+            time.sleep(0.05)
+            
         if current_joints is None:
             self.get_logger().error('Cannot get current joint angles')
             return False
         
-        # Get current pose via FK (computed from joint angles)
-        current_pose = self.get_current_pose()
+        # Get current pose via FK (computed from joint angles) - also refresh
+        current_pose = None
+        for attempt in range(3):
+            current_pose = self.get_current_pose()
+            if current_pose is not None:
+                break
+            time.sleep(0.05)
+            
         if current_pose is None:
             self.get_logger().error('Cannot compute current pose via FK')
             return False

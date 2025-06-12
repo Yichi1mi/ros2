@@ -37,63 +37,69 @@ def main():
             # ========================================
             # YOUR CODE GOES HERE - 你的代码写在这里
             # ========================================
+
+            # Display workspace information
+            print("📋 Workspace Information:")
+            workspace_info = robot.get_workspace_info()
+            limits = workspace_info['limits']
+            print(f"   Safe X range: {limits['x_min']:.1f} to {limits['x_max']:.1f}m")
+            print(f"   Safe Y range: {limits['y_min']:.1f} to {limits['y_max']:.1f}m") 
+            print(f"   Safe Z range: {limits['z_min']:.1f} to {limits['z_max']:.1f}m")
+            print(f"   Max reach: {workspace_info['max_reach']:.2f}m from origin")
+            print()
+
+            # initial home position
+            print("0. 回归home位置")
+            robot.move_to_home()
+            robot.pause(0.5)   
+
+            print("1. 关节空间运动到位置1")
+            robot.move_to_joint_positions(1.0, -1.0, 0.0, -1.0, 0.0, 0.0)
+            robot.pause(0.5)
             
-            # 演示正确的机器人控制策略:
-            print("=== 正确的机器人控制策略演示 ===")
+            print("1.5. 测试关节限制处理")
+            # 测试一个超出限制的角度 (例如 J3 超过 180°)
+            robot.move_to_joint_positions(0.5, -1.0, 4.0, -1.0, 0.0, 0.0)  # J3=4.0 rad ≈ 229°
+            robot.pause(0.5)
+
+            print("2. 相对运动测试")
+            robot.move_relative(0.0, 0.0, -0.1)  # 向下10cm
+            robot.pause(0.5)              
+
+            print("3. 绝对位置控制 (安全位置)")
+            robot.move_to_position(0.1, 0.2, 0.7, 1.000, 0.000, 0.000, 0.000)
+            robot.pause(0.5)  
+
+            print("4. 绝对位置控制 (安全位置)")
+            robot.move_to_position(0.05, 0.1, 0.8, 1.000, 0.000, 0.000, 0.000)
+            robot.pause(0.5)
+
+            print("5. 🧪 测试工作空间边界保护 - 尝试超出X边界")
+            print("   尝试移动到 X=1.0m (超出右边界 0.6m)")
+            robot.move_to_position(1.0, 0.2, 0.7, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            robot.pause(0.5)
+
+            print("6. 🧪 测试工作空间边界保护 - 尝试超出Z下边界")
+            print("   尝试移动到 Z=0.1m (低于下边界 0.3m)")
+            robot.move_to_position(0.1, 0.2, 0.1, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            robot.pause(0.5)
+
+            print("7. 🧪 测试工作空间边界保护 - 尝试超出最大reach")
+            print("   尝试移动到距离原点1.0m的位置 (超出最大reach 0.85m)")
+            robot.move_to_position(0.7, 0.7, 0.7, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            robot.pause(0.5)
+
+            print("8. 回到接近home的位置")
+            robot.move_to_position(0.01, 0.19, 0.7, 1.000, 0.000, 0.000, 0.000)
+            robot.pause(0.5)
             
-            # 1. 关节空间运动 - 移动到已知安全位置
-            print("1. 关节空间运动到home位置")
-            robot.move_to_joint_positions([0.0, -1.57, 0.0, -1.57, 0.0, 0.0], "Move to home")
-            robot.wait_for_completion()
+            print("9. 回到home位置")
+            robot.move_to_home()
             
-            # 2. 读取传感器数据 - 关节角度
-            print("2. 读取当前关节角度 (传感器数据)")
-            joint_angles = robot.get_current_joint_angles_degrees()
-            if joint_angles:
-                print(f"   关节角度(度): {[f'{j:.1f}°' for j in joint_angles]}")
-            
-            # 3. 正向运动学 - 计算末端位姿
-            print("3. 通过正向运动学计算末端位姿")
-            current_pose = robot.get_current_cartesian_pose()
-            if current_pose:
-                x, y, z = current_pose.position.x, current_pose.position.y, current_pose.position.z
-                print(f"   末端位置: x={x:.3f}, y={y:.3f}, z={z:.3f}")
-                print(f"   末端姿态: x={current_pose.orientation.x:.3f}, y={current_pose.orientation.y:.3f}, z={current_pose.orientation.z:.3f}, w={current_pose.orientation.w:.3f}")
-            
-            # 4. 笛卡尔空间相对运动 (基于FK计算的位姿)
-            print("4. 笛卡尔空间相对运动")
-            robot.move_relative_xyz(0, 0, -0.1, "向下移动10cm")
-            robot.wait_for_completion()
-            
-            robot.move_relative_xyz(0.03, 0, 0, "向前移动3cm") 
-            robot.wait_for_completion()
-            
-            robot.move_relative_xyz(0, 0, 0.02, "向上移动2cm")
-            robot.wait_for_completion()
-            
-            robot.move_relative_xyz(-0.03, 0, 0, "向后移动3cm")
-            robot.wait_for_completion()
-            
-            # 5. 关节空间运动 - 改变机器人构型
-            print("5. 改变机器人构型 (关节空间)")
-            robot.move_to_joint_positions([0.785, -1.0, 0.0, -1.5, 0.0, 0.0], "新的关节构型")
-            robot.wait_for_completion()
-            
-            # 6. 验证新构型下的末端位姿
-            print("6. 验证新构型下的末端位姿")
-            new_pose = robot.get_current_cartesian_pose()
-            if new_pose:
-                x, y, z = new_pose.position.x, new_pose.position.y, new_pose.position.z
-                print(f"   新末端位置: x={x:.3f}, y={y:.3f}, z={z:.3f}")
-            
-            print("=== 控制策略演示完成 ===")
-            
-            print("\nMain controller finished - ready for your custom code!")
+            print("=== 工作空间安全测试完成 ===")
             
         except KeyboardInterrupt:
             print("User interrupted")
-            robot.stop_execution()
-            robot.clear_queue()
         
         print("Main controller finished")
     

@@ -99,8 +99,9 @@ class RobotStateManager:
         Returns:
             list: Copy of current joint positions, or None if not available
         """
-        # Spin once to get latest joint states
-        rclpy.spin_once(self._node, timeout_sec=0.01)
+        # Spin multiple times to ensure we get the latest joint states
+        for _ in range(10):
+            rclpy.spin_once(self._node, timeout_sec=0.02)
         
         with self._joint_state_lock:
             return self._current_joint_positions.copy() if self._current_joint_positions else None

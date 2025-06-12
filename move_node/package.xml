@@ -14,6 +14,11 @@
   <depend>moveit_ros_planning_interface</depend>
   <depend>robot_common</depend>
   
+  <!-- Gripper control dependencies -->
+  <depend>control_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>gripper_controllers</depend>
+  
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
