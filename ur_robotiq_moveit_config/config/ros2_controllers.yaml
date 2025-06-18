@@ -1,26 +1,19 @@
-# 这是你唯一需要的控制器配置文件，用于Gazebo+MoveIt
+# This config file is used by ros2_control
 controller_manager:
   ros__parameters:
-    update_rate: 100
-    use_sim_time: true  # Gazebo必须使用仿真时间
-
-    # 在这里明确指定用于Gazebo的硬件插件
-    # 这将彻底解决“找不到插件”的问题
-    hardware:
-      plugin: gazebo_ros2_control/GazeboSystem
-      params: {}
-
-    # 定义需要加载的控制器类型
-    joint_state_broadcaster:
-      type: joint_state_broadcaster/JointStateBroadcaster
+    update_rate: 100  # Hz
 
     joint_trajectory_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
+
     robotiq_gripper_controller:
       type: position_controllers/GripperActionController
 
-# 为每个控制器提供参数
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
 joint_trajectory_controller:
   ros__parameters:
     joints:
@@ -35,7 +28,6 @@ joint_trajectory_controller:
     state_interfaces:
       - position
       - velocity
-
 robotiq_gripper_controller:
   ros__parameters:
     joint: robotiq_85_left_knuckle_joint

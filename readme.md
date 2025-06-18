@@ -5,6 +5,9 @@
 - `robot_ws/` - ROS2工作空间（映射到Docker内部）
 
 ## 启动步骤
+```bash
+docker build -t ros2_ur_sim:latest .
+```
 
 ### 1. 启动Docker容器（在host bash中执行）
 ```bash
@@ -15,32 +18,47 @@ cd /home/xichen/ur5_docker
 ### 2. 构建工作空间（在Docker容器内执行，仅首次或修改后需要）
 ```bash
 # 在Docker容器内
-source /root/ros2_ws/install/setup.bash
+source /opt/ros/humble/setup.bash
+source install/setup.bash
 colcon build --symlink-install
 ```
+
+```bash
+rm -rf build/ install/
+colcon build --symlink-install
+```
+
 
 ### 3. 选择仿真模式（在Docker容器内执行）
 
 #### 选项A: 仅MoveIt仿真（推荐用于开发测试）
 ```bash
 # 在Docker容器内
+source /opt/ros/humble/setup.bash
 source install/setup.bash
-ros2 launch ur_robotiq_moveit_config demo.launch.py
+ros2 launch ur_robotiq_moveit_config ur5e_sim_moveit.launch.py
 ```
 
 #### 选项B: Gazebo + MoveIt完整仿真
 ```bash
 # 在Docker容器内
+source /opt/ros/humble/setup.bash
 source install/setup.bash
-ros2 launch ur_robotiq_moveit_config ur5e_robotiq_gazebo_moveit.launch.py
+ros2 launch ur_robotiq_moveit_config ur5e_sim_gazebo.launch.py
 ```
 
-#### 选项C: 仅查看机器人模型
+
+
 ```bash
 # 在Docker容器内
 source install/setup.bash
-ros2 launch ur_description_custom test_ur5e_robotiq.launch.py
+ros2 launch ur_simulation_gazebo ur_sim_moveit.launch.py \
+ur_type:=ur5e \
+description_package:=ur_description_custom \
+description_file:=ur5_robotiq_85.urdf.xacro
+
 ```
+
 
 ### 4. 运行控制器（可选，在新终端）
 ```bash
@@ -49,8 +67,6 @@ docker exec -it ur_simulation_env bash
 
 # 在新Docker终端内
 cd /home/xichen/robot_ws
-source /opt/ros/humble/setup.bash
-source /root/ros2_ws/install/setup.bash
 source install/setup.bash
 ros2 run main_controller main_controller
 ```

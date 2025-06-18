@@ -3,9 +3,12 @@
 
   <xacro:arg name="use_fake_hardware" default="true" />
   <xacro:arg name="sim_gazebo" default="false" />
+
+  <xacro:arg name="simulation_engine" default="mock" />
   
   <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
   <xacro:include filename="$(find robotiq_description)/urdf/robotiq_2f_85_macro.urdf.xacro"/>
+  <xacro:include filename="$(find ur_robotiq_moveit_config)/config/ur5_with_robotiq.ros2_control.xacro" />
 
   <link name="world" />
 
@@ -30,15 +33,18 @@
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:robotiq_gripper>
   
-
   <xacro:if value="$(arg use_fake_hardware)">
-    <xacro:include filename="$(find ur_robotiq_moveit_config)/config/ur5_with_robotiq.ros2_control.xacro" />
-    <xacro:ur5_with_robotiq_ros2_control name="FakeSystem" initial_positions_file="$(find ur_robotiq_moveit_config)/config/initial_positions.yaml"/>
+    <xacro:ur5_with_robotiq_ros2_control 
+        name="FakeSystem" 
+        initial_positions_file="$(find ur_robotiq_moveit_config)/config/initial_positions.yaml"
+        simulation_engine="$(arg simulation_engine)"/>
   </xacro:if>
 
   <xacro:if value="$(arg sim_gazebo)">
-    <xacro:include filename="$(find ur_robotiq_moveit_config)/config/ur5e_robotiq_gazebo.ros2_control.xacro" />
-    <xacro:ur5_with_robotiq_gazebo_ros2_control name="GazeboSystem" initial_positions_file="$(find ur_robotiq_moveit_config)/config/initial_positions.yaml"/>
+    <xacro:ur5_with_robotiq_ros2_control
+        name="GazeboSystem" 
+        initial_positions_file="$(find ur_robotiq_moveit_config)/config/initial_positions.yaml"
+        simulation_engine="$(arg simulation_engine)"/>
   </xacro:if>
 
 </robot>
