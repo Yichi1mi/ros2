@@ -8,19 +8,16 @@ All movements are blocking and auto-wait for completion.
 import math
 from .joint_controller import JointController
 from .position_controller import PositionController
-from .gripper_controller import GripperController
 
 class RobotArmController:
     """
     Simplified robot arm controller with direct execution (no queue).
     Provides clean, minimal API for joint and position control.
-    Now includes gripper control for grasping tasks.
     """
 
     def __init__(self):
         self.joint_controller = JointController()
         self.position_controller = PositionController()
-        self.gripper_controller = None  # Initialize gripper controller lazily
         self.HOME_POSITION = [0.0, -1.57, 0.0, -1.57, 0.0, 0.0]
         self._pause_between_movements = 0.5  # Default pause in seconds
         
@@ -35,26 +32,9 @@ class RobotArmController:
             'z_max': 1.2      # Upper limit (avoid overextension)
         }
 
-    def _ensure_gripper_controller(self):
-        """Initialize gripper controller if not already done."""
-        if self.gripper_controller is None:
-            try:
-                self.gripper_controller = GripperController()
-                print("🤖 Gripper controller initialized")
-            except Exception as e:
-                print(f"⚠️  Could not initialize gripper controller: {e}")
-                return False
-        return True
-
     def is_connected(self):
         """Check if robot is connected."""
         return self.joint_controller.is_connected() and self.position_controller.is_connected()
-    
-    def is_gripper_connected(self):
-        """Check if gripper is connected."""
-        if not self._ensure_gripper_controller():
-            return False
-        return self.gripper_controller.is_connected()
 
     def _is_position_safe(self, x, y, z):
         """
@@ -289,241 +269,19 @@ class RobotArmController:
             )
         return None
 
-    # ========== GRIPPER CONTROL METHODS ==========
-
-    def open_gripper(self):
-        """
-        Open the gripper fully.
-        :return: True if successful
-        """
-        if not self._ensure_gripper_controller():
-            print("❌ Gripper not available")
-            return False
-        
-        print("🖐️  Opening gripper")
-        success = self.gripper_controller.open_gripper(blocking=True)
-        
-        if success and self._pause_between_movements > 0:
-            import time
-            time.sleep(self._pause_between_movements)
-        
-        return success
-
-    def close_gripper(self, force_percent=80):
-        """
-        Close the gripper with specified force.
-        :param force_percent: Closing force as percentage of maximum (0-100)
-        :return: True if successful
-        """
-        if not self._ensure_gripper_controller():
-            print("❌ Gripper not available")
-            return False
-        
-        # Convert percentage to actual force (Robotiq 2F-85 max: 100N)
-        max_effort = (force_percent / 100.0) * 100.0  # 100N max force
-        
-        print(f"✊ Closing gripper with {force_percent}% force")
-        success = self.gripper_controller.close_gripper(max_effort=max_effort, blocking=True)
-        
-        if success and self._pause_between_movements > 0:
-            import time
-            time.sleep(self._pause_between_movements)
-        
-        return success
-
-    def set_gripper_position(self, position_mm, force_percent=60):
-        """
-        Set gripper to specific position.
-        :param position_mm: Target position in millimeters (0-42mm, 0=open, 42=closed)
-        :param force_percent: Maximum force as percentage (0-100)
-        :return: True if successful
-        """
-        if not self._ensure_gripper_controller():
-            print("❌ Gripper not available")
-            return False
-        
-        # Clamp position to valid range
-        position_mm = max(0.0, min(42.0, position_mm))
-        max_effort = (force_percent / 100.0) * 100.0
-        
-        print(f"🤏 Setting gripper position: {position_mm:.1f}mm")
-        success = self.gripper_controller.set_gripper_position(
-            position_mm, max_effort=max_effort, blocking=True
-        )
-        
-        if success and self._pause_between_movements > 0:
-            import time
-            time.sleep(self._pause_between_movements)
-        
-        return success
-
-    def grasp_object(self, force_percent=60):
-        """
-        Attempt to grasp an object with controlled force.
-        The gripper will close until it contacts an object or reaches full closure.
-        :param force_percent: Grasping force as percentage of maximum (0-100)
-        :return: True if object detected and grasped
-        """
-        if not self._ensure_gripper_controller():
-            print("❌ Gripper not available")
-            return False
-        
-        max_effort = (force_percent / 100.0) * 100.0
-        
-        print(f"🫴 Attempting to grasp object with {force_percent}% force")
-        success = self.gripper_controller.grasp_object(max_effort=max_effort)
-        
-        if success:
-            state = self.gripper_controller.get_gripper_state()
-            print(f"✅ Grasp successful - position: {state['position_mm']:.1f}mm")
-        else:
-            print("⚠️  No object detected")
-        
-        if self._pause_between_movements > 0:
-            import time
-            time.sleep(self._pause_between_movements)
-        
-        return success
-
-    def release_object(self):
-        """
-        Release grasped object by opening gripper.
-        :return: True if successful
-        """
-        if not self._ensure_gripper_controller():
-            print("❌ Gripper not available")
-            return False
-        
-        print("🫳 Releasing object")
-        success = self.gripper_controller.release_object()
-        
-        if success and self._pause_between_movements > 0:
-            import time
-            time.sleep(self._pause_between_movements)
-        
-        return success
-
-    def get_gripper_state(self):
-        """
-        Get comprehensive gripper state information.
-        :return: Dictionary with gripper status, or None if gripper not available
-        """
-        if not self._ensure_gripper_controller():
-            return None
-        
-        return self.gripper_controller.get_gripper_state()
-
-    def is_gripper_open(self):
-        """Check if gripper is in open position."""
-        state = self.get_gripper_state()
-        return state['is_open'] if state else False
-
-    def is_gripper_closed(self):
-        """Check if gripper is in closed position.""" 
-        state = self.get_gripper_state()
-        return state['is_closed'] if state else False
-
-    def get_gripper_position_mm(self):
-        """Get current gripper position in millimeters."""
-        state = self.get_gripper_state()
-        return state['position_mm'] if state else None
-
-    # ========== COMBINED ARM + GRIPPER OPERATIONS ==========
-
-    def pick_object_at_position(self, x, y, z, qx, qy, qz, qw, approach_height=0.1, force_percent=60):
-        """
-        Complete pick operation: move to position and grasp object.
-        :param x, y, z: Target position coordinates in meters
-        :param qx, qy, qz, qw: Target orientation quaternion
-        :param approach_height: Height above target to approach from (meters)
-        :param force_percent: Grasping force percentage
-        :return: True if successful
-        """
-        print(f"🎯 Starting pick operation at position ({x:.3f}, {y:.3f}, {z:.3f})")
-        
-        # 1. Open gripper
-        if not self.open_gripper():
-            print("❌ Failed to open gripper")
-            return False
-        
-        # 2. Move to approach position (above target)
-        approach_z = z + approach_height
-        print(f"📍 Moving to approach position (z+{approach_height:.2f}m)")
-        if not self.move_to_position(x, y, approach_z, qx, qy, qz, qw):
-            print("❌ Failed to reach approach position")
-            return False
-        
-        # 3. Move down to target position
-        print("⬇️  Descending to target position")
-        if not self.move_to_position(x, y, z, qx, qy, qz, qw):
-            print("❌ Failed to reach target position")
-            return False
-        
-        # 4. Grasp object
-        if not self.grasp_object(force_percent=force_percent):
-            print("❌ Failed to grasp object")
-            return False
-        
-        # 5. Lift object
-        print("⬆️  Lifting object")
-        if not self.move_to_position(x, y, approach_z, qx, qy, qz, qw):
-            print("❌ Failed to lift object")
-            return False
-        
-        print("✅ Pick operation completed successfully")
-        return True
-
-    def place_object_at_position(self, x, y, z, qx, qy, qz, qw, approach_height=0.1):
-        """
-        Complete place operation: move to position and release object.
-        :param x, y, z: Target position coordinates in meters
-        :param qx, qy, qz, qw: Target orientation quaternion
-        :param approach_height: Height above target to approach from (meters)
-        :return: True if successful
-        """
-        print(f"🎯 Starting place operation at position ({x:.3f}, {y:.3f}, {z:.3f})")
-        
-        # 1. Move to approach position (above target)
-        approach_z = z + approach_height
-        print(f"📍 Moving to approach position (z+{approach_height:.2f}m)")
-        if not self.move_to_position(x, y, approach_z, qx, qy, qz, qw):
-            print("❌ Failed to reach approach position")
-            return False
-        
-        # 2. Move down to target position
-        print("⬇️  Descending to target position")
-        if not self.move_to_position(x, y, z, qx, qy, qz, qw):
-            print("❌ Failed to reach target position")
-            return False
-        
-        # 3. Release object
-        if not self.release_object():
-            print("❌ Failed to release object")
-            return False
-        
-        # 4. Move back up
-        print("⬆️  Moving away from placed object")
-        if not self.move_to_position(x, y, approach_z, qx, qy, qz, qw):
-            print("❌ Failed to move away from object")
-            return False
-        
-        print("✅ Place operation completed successfully")
-        return True
-
 
 def main(args=None):
-    """Test function for robot arm controller with gripper."""
+    """Test function for robot arm controller."""
     import rclpy
     
     rclpy.init(args=args)
     
     try:
-        print("🤖 Initializing UR5 Robot Arm Controller with Gripper...")
+        print("🤖 Initializing UR5 Robot Arm Controller...")
         robot = RobotArmController()
         
         # Check connections
         print(f"Robot arm connected: {robot.is_connected()}")
-        print(f"Gripper connected: {robot.is_gripper_connected()}")
         
         if not robot.is_connected():
             print("❌ Robot arm not connected. Make sure simulation is running.")
@@ -540,26 +298,8 @@ def main(args=None):
             x, y, z, _, _, _, _ = current_pos
             print(f"Current position: ({x:.3f}, {y:.3f}, {z:.3f})")
         
-        # Test gripper if available
-        if robot.is_gripper_connected():
-            print("\n=== GRIPPER TESTS ===")
-            
-            print("2. Testing gripper operations...")
-            robot.open_gripper()
-            print(f"Gripper state: {robot.get_gripper_state()}")
-            
-            robot.close_gripper(force_percent=50)
-            print(f"Gripper state: {robot.get_gripper_state()}")
-            
-            robot.set_gripper_position(20.0)  # 20mm
-            print(f"Gripper state: {robot.get_gripper_state()}")
-            
-            robot.open_gripper()
-        else:
-            print("\n⚠️  Gripper not available - skipping gripper tests")
-        
         print("\n✅ Robot controller test completed!")
-        print("Use this controller in your applications for arm + gripper control.")
+        print("Use this controller in your applications for arm control.")
         
     except KeyboardInterrupt:
         print("\n🛑 Test interrupted by user")

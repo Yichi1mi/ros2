@@ -2,3 +2,15 @@
 	path = Universal_Robots_ROS2_Gazebo_Simulation
 	url = https://github.com/UniversalRobots/Universal_Robots_ROS2_Gazebo_Simulation.git
 	branch = humble
+[submodule "Universal_Robots_ROS2_Description"]
+	path = Universal_Robots_ROS2_Description
+	url = https://github.com/UniversalRobots/Universal_Robots_ROS2_Description.git
+[submodule "Universal_Robots_ROS2_Driver"]
+	path = Universal_Robots_ROS2_Driver
+	url = https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver.git
+[submodule "ur_client_library"]
+	path = ur_client_library
+	url = https://github.com/UniversalRobots/ur_client_library.git
+[submodule "ur_msgs"]
+	path = ur_msgs
+	url = https://github.com/UniversalRobots/Universal_Robots_ROS2_Description.git
