@@ -14,3 +14,6 @@
 [submodule "ur_msgs"]
 	path = ur_msgs
 	url = https://github.com/UniversalRobots/Universal_Robots_ROS2_Description.git
+[submodule "moveit_resources"]
+	path = moveit_resources
+	url = https://github.com/ros-planning/moveit_resources.git
