@@ -21,16 +21,16 @@ class JointController(RobotConnectionBase):
     """
     
     def __init__(self):
-        # Joint configuration
+        # Joint configuration for Panda
         self._joint_names = [
-            'shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint',
-            'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'
+            'panda_joint1', 'panda_joint2', 'panda_joint3',
+            'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7'
         ]
         
         # Initialize base class
         super().__init__(
             node_name='joint_controller',
-            action_name='/joint_trajectory_controller/follow_joint_trajectory',
+            action_name='/panda_arm_controller/follow_joint_trajectory',
             action_type=FollowJointTrajectory
         )
     
@@ -68,8 +68,8 @@ class JointController(RobotConnectionBase):
             self.get_logger().error('Controller not connected!')
             return False
         
-        if len(target_positions) != 6:
-            self.get_logger().error(f'Expected 6 joint positions, got {len(target_positions)}')
+        if len(target_positions) != 7:
+            self.get_logger().error(f'Expected 7 joint positions for Panda, got {len(target_positions)}')
             return False
         
         # Calculate movement duration

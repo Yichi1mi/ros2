@@ -1,101 +1,60 @@
-# UR5e + Robotiq 85 仿真启动指南
+# Franka Emika Panda Docker化仿真项目指南 (README)
 
-## 目录说明
-- `ur5_docker/` - Docker环境配置
-- `robot_ws/` - ROS2工作空间（映射到Docker内部）
+## 1. 项目概述
 
-## 启动步骤
+本项目提供了一个基于Docker的、完整的ROS 2 Humble环境，用于对Franka Emika Panda机械臂（包含其官方夹爪）进行物理仿真和运动规划。
+
+- **核心技术**:
+  - **Docker**: 提供可移植、可复现的隔离开发环境。
+  - **ROS 2 Humble**: 机器人操作系统。
+  - **Gazebo**: 用于进行物理仿真。
+  - **MoveIt 2**: 用于进行运动规划。
+- **工作空间挂载**:
+  - **本地主机**的 `~/robot_ws` 目录被实时挂载到**Docker容器**内部的 `/ros2_ws` 目录。这意味着两边的文件是实时同步的。
+
+## 2. 首次环境设置 (One-Time Environment Setup)
+
+如果您是第一次使用这个项目，或者您刚刚修改了`Dockerfile`，请遵循以下步骤。
+
+### 2.1 构建Docker镜像 (在Host主机上执行)
+
+此步骤会根据`Dockerfile`创建一个名为`ros2_panda_sim:latest`的镜像，其中包含了所有系统级和ROS基础依赖。
+
 ```bash
-docker build -t ros2_ur_sim:latest .
+# 导航到包含Dockerfile的项目根目录 (例如 ~/panda_docker)
+docker build -t ros2_panda_sim:latest .
 ```
 
-### 1. 启动Docker容器（在host bash中执行）
-```bash
-cd /home/xichen/ur5_docker
+
+# 导航到包含run_sim.sh的目录 (例如 ~/panda_docker)
 ./run_sim.sh
-```
 
-### 2. 构建工作空间（在Docker容器内执行，仅首次或修改后需要）
-```bash
-# 在Docker容器内
-source /opt/ros/humble/setup.bash
-source install/setup.bash
+
+# 确认您在容器内的 /ros2_ws 目录下
+cd /ros2_ws
+
+# (可选但推荐) 安装或更新依赖
+rosdep install --from-paths src --ignore-src -r -y
+
+# 编译您的工作空间
 colcon build --symlink-install
-```
-
-```bash
-rm -rf build/ install/
-colcon build --symlink-install
-```
 
 
-### 3. 选择仿真模式（在Docker容器内执行）
-
-#### 选项A: 仅MoveIt仿真（推荐用于开发测试）
-```bash
-# 在Docker容器内
-source /opt/ros/humble/setup.bash
+# 确认您在容器内的 /ros2_ws 目录下
+cd /ros2_ws
 source install/setup.bash
-ros2 launch ur_robotiq_moveit_config ur5e_sim_moveit.launch.py
-```
 
-#### 选项B: Gazebo + MoveIt完整仿真
-```bash
-# 在Docker容器内
-source /opt/ros/humble/setup.bash
+
+# 启动MoveIt + Gazebo 完整物理仿真
+ros2 launch moveit_resources_panda_moveit_config demo.launch.py
+
+
+# 注意容器名称已更新
+docker exec -it panda_simulation_env bash
+# 在新的Docker终端内
+cd /ros2_ws
 source install/setup.bash
-ros2 launch ur_robotiq_moveit_config ur5e_sim_gazebo.launch.py
-```
 
-
-
-```bash
-# 在Docker容器内
-source install/setup.bash
-ros2 launch ur_simulation_gazebo ur_sim_moveit.launch.py \
-ur_type:=ur5e \
-description_package:=ur_description_custom \
-description_file:=ur5_robotiq_85.urdf.xacro
-
-```
-
-
-### 4. 运行控制器（可选，在新终端）
-```bash
-# 在host bash中打开新终端
-docker exec -it ur_simulation_env bash
-
-# 在新Docker终端内
-cd /home/xichen/robot_ws
-source install/setup.bash
-ros2 run main_controller main_controller
-```
-
-## 推荐使用流程
-1. **开发调试**: 使用选项A（仅MoveIt）- 启动快，资源占用少
-2. **物理仿真**: 使用选项B（仅Gazebo）- 单纯的物理仿真环境
-3. **完整测试**: 使用选项C（Gazebo+MoveIt）- 包含物理仿真和运动规划
-4. **模型检查**: 使用选项D（仅显示）- 快速查看机器人模型
-
-## 注意事项
-
-### 构建工作空间
-- **首次使用** 或 **修改launch文件/配置后** 必须执行 `colcon build`
-- 构建成功后需要重新 `source install/setup.bash`
-- 如果遇到问题，可以尝试 `colcon build --packages-select ur_robotiq_moveit_config`
-
-### 环境设置
-- 每次进入Docker容器都需要执行三个source命令：
-  ```bash
-  source /opt/ros/humble/setup.bash
-  source /root/ros2_ws/install/setup.bash  
-  source install/setup.bash
-  ```
-
-### 重新启动流程
-1. 如果修改了代码/配置：退出容器 → 重启Docker → 构建 → 启动
-2. 如果只是重启：退出容器 → 重启Docker → 直接启动
-
-### 验证启动成功
-- **MoveIt demo**: 应该看到RViz界面，机械臂上有交互式标记（小圆球）
-- **控制器状态**: 新终端执行 `ros2 control list_controllers` 应显示active状态
+# --- 现在可以执行其他ROS2命令了 ---
+# ros2 topic list
+# ros2 control list_controllers

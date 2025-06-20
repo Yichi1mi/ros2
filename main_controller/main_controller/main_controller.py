@@ -29,9 +29,9 @@ def main():
             robot.set_speed(50)  # 50% speed
             robot.set_pause_between_movements(0.5)  # 0.5 second pause between movements
             
-            print("=== UR5 Robot Controller Ready ===")
+            print("=== Panda Robot Controller Ready ===")
             print("Robot is ready for commands!")
-            print("See MOVEMENT_FEATURES.txt for detailed API usage tutorial")
+            print("Panda 7-DOF arm with gripper ready for control")
             print("=" * 50)
             
             # ========================================
@@ -54,12 +54,12 @@ def main():
             robot.pause(0.5)   
 
             print("1. 关节空间运动到位置1")
-            robot.move_to_joint_positions(1.0, -1.0, 0.0, -1.0, 0.0, 0.0)
+            robot.move_to_joint_positions(1.0, -0.5, 0.0, -1.5, 0.0, 1.0, 0.5)
             robot.pause(0.5)
             
             print("1.5. 测试关节限制处理")
-            # 测试一个超出限制的角度 (例如 J3 超过 180°)
-            robot.move_to_joint_positions(0.5, -1.0, 4.0, -1.0, 0.0, 0.0)  # J3=4.0 rad ≈ 229°
+            # 测试一个超出限制的角度 (例如 J3 超出限制)
+            robot.move_to_joint_positions(0.5, -0.5, 4.0, -1.5, 0.0, 1.0, 0.5)  # J3=4.0 rad 超出限制
             robot.pause(0.5)
 
             print("2. 相对运动测试")
@@ -67,30 +67,30 @@ def main():
             robot.pause(0.5)              
 
             print("3. 绝对位置控制 (安全位置)")
-            robot.move_to_position(0.1, 0.2, 0.7, 1.000, 0.000, 0.000, 0.000)
+            robot.move_to_position(0.3, 0.0, 0.5, 1.000, 0.000, 0.000, 0.000)
             robot.pause(0.5)  
 
             print("4. 绝对位置控制 (安全位置)")
-            robot.move_to_position(0.05, 0.1, 0.8, 1.000, 0.000, 0.000, 0.000)
+            robot.move_to_position(0.4, 0.2, 0.6, 1.000, 0.000, 0.000, 0.000)
             robot.pause(0.5)
 
             print("5. 🧪 测试工作空间边界保护 - 尝试超出X边界")
-            print("   尝试移动到 X=1.0m (超出右边界 0.6m)")
-            robot.move_to_position(1.0, 0.2, 0.7, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            print("   尝试移动到 X=1.0m (超出右边界 0.7m)")
+            robot.move_to_position(1.0, 0.0, 0.5, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
             robot.pause(0.5)
 
             print("6. 🧪 测试工作空间边界保护 - 尝试超出Z下边界")
-            print("   尝试移动到 Z=0.1m (低于下边界 0.3m)")
-            robot.move_to_position(0.1, 0.2, 0.1, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            print("   尝试移动到 Z=0.05m (低于下边界 0.1m)")
+            robot.move_to_position(0.3, 0.0, 0.05, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
             robot.pause(0.5)
 
             print("7. 🧪 测试工作空间边界保护 - 尝试超出最大reach")
-            print("   尝试移动到距离原点1.0m的位置 (超出最大reach 0.85m)")
-            robot.move_to_position(0.7, 0.7, 0.7, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            print("   尝试移动到距离原点1.0m的位置 (超出最大reach 0.855m)")
+            robot.move_to_position(0.6, 0.6, 0.6, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
             robot.pause(0.5)
 
             print("8. 回到接近home的位置")
-            robot.move_to_position(0.01, 0.19, 0.7, 1.000, 0.000, 0.000, 0.000)
+            robot.move_to_position(0.3, 0.0, 0.6, 1.000, 0.000, 0.000, 0.000)
             robot.pause(0.5)
             
             print("9. 回到home位置")

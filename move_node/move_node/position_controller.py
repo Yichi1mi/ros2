@@ -30,21 +30,21 @@ class PositionController(RobotConnectionBase):
     Handles point-to-point movement with inverse kinematics.
     """
     
-    def __init__(self, planning_group="ur_manipulator"):
-        # Joint configuration
+    def __init__(self, planning_group="panda_arm"):
+        # Joint configuration for Panda
         self._joint_names = [
-            'shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint',
-            'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'
+            'panda_joint1', 'panda_joint2', 'panda_joint3',
+            'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7'
         ]
         
         self._planning_group = planning_group
-        self._planning_frame = "base_link"
-        self._end_effector_link = "tool0"
+        self._planning_frame = "panda_link0"
+        self._end_effector_link = "panda_link8"
         
         # Initialize base class
         super().__init__(
             node_name='position_controller',
-            action_name='/joint_trajectory_controller/follow_joint_trajectory',
+            action_name='/panda_arm_controller/follow_joint_trajectory',
             action_type=FollowJointTrajectory
         )
     

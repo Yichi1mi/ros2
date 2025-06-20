@@ -18,18 +18,18 @@ class RobotArmController:
     def __init__(self):
         self.joint_controller = JointController()
         self.position_controller = PositionController()
-        self.HOME_POSITION = [0.0, -1.57, 0.0, -1.57, 0.0, 0.0]
+        self.HOME_POSITION = [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785]  # Panda ready position
         self._pause_between_movements = 0.5  # Default pause in seconds
         
         # Define safe workspace boundaries (in meters)
-        # Based on UR5 specs: 850mm reach, home at (0.001, 0.191, 1.001)
+        # Based on Panda specs: 855mm reach, typical working height 0.1-1.0m
         self.WORKSPACE_LIMITS = {
-            'x_min': -0.6,    # Left limit
-            'x_max': +0.6,    # Right limit  
-            'y_min': -0.3,    # Back limit (closer to base)
-            'y_max': +0.8,    # Front limit (further from base)
-            'z_min': 0.3,     # Lower limit (avoid table collision)
-            'z_max': 1.2      # Upper limit (avoid overextension)
+            'x_min': -0.7,    # Left limit
+            'x_max': +0.7,    # Right limit  
+            'y_min': -0.7,    # Back limit
+            'y_max': +0.7,    # Front limit
+            'z_min': 0.1,     # Lower limit (table height)
+            'z_max': 1.2      # Upper limit
         }
 
     def is_connected(self):
@@ -64,9 +64,9 @@ class RobotArmController:
         
         # Check distance from origin (additional safety check)
         distance_from_origin = math.sqrt(x*x + y*y + z*z)
-        max_safe_distance = 0.85  # UR5 max reach is 850mm, use full range
+        max_safe_distance = 0.855  # Panda max reach is 855mm
         if distance_from_origin > max_safe_distance:
-            errors.append(f"Distance from origin {distance_from_origin:.3f}m exceeds max reach ({max_safe_distance:.2f}m)")
+            errors.append(f"Distance from origin {distance_from_origin:.3f}m exceeds max reach ({max_safe_distance:.3f}m)")
         
         if errors:
             error_msg = "🚫 WORKSPACE SAFETY VIOLATION:\n" + "\n".join(f"   • {error}" for error in errors)
@@ -81,7 +81,7 @@ class RobotArmController:
         """
         info = {
             'limits': self.WORKSPACE_LIMITS.copy(),
-            'max_reach': 0.85
+            'max_reach': 0.855
         }
         
         # Add current position if available
@@ -95,23 +95,24 @@ class RobotArmController:
         
         return info
 
-    def move_to_joint_positions(self, j1, j2, j3, j4, j5, j6):
+    def move_to_joint_positions(self, j1, j2, j3, j4, j5, j6, j7):
         """
         Move to joint positions (blocking, auto-wait for completion).
-        :param j1-j6: Joint angles in radians
+        :param j1-j7: Joint angles in radians for Panda
         :return: True if successful
         """
-        angles = [j1, j2, j3, j4, j5, j6]
+        angles = [j1, j2, j3, j4, j5, j6, j7]
         
-        # Check joint limits for UR5 (in radians)
-        # UR5 joint limits: ±360° for most joints, some have different limits
+        # Check joint limits for Panda (in radians)
+        # Panda joint limits based on specifications
         joint_limits = [
-            (-2*math.pi, 2*math.pi),     # J1: ±360°
-            (-2*math.pi, 2*math.pi),     # J2: ±360°  
-            (-math.pi, math.pi),         # J3: ±180°
-            (-2*math.pi, 2*math.pi),     # J4: ±360°
-            (-2*math.pi, 2*math.pi),     # J5: ±360°
-            (-2*math.pi, 2*math.pi),     # J6: ±360°
+            (-2.8973, 2.8973),     # J1: ±166°
+            (-1.7628, 1.7628),     # J2: ±101°
+            (-2.8973, 2.8973),     # J3: ±166°
+            (-3.0718, -0.0698),    # J4: -176° to -4°
+            (-2.8973, 2.8973),     # J5: ±166°
+            (-0.0175, 3.7525),     # J6: -1° to 215°
+            (-2.8973, 2.8973),     # J7: ±166°
         ]
         
         # Normalize angles to shortest path and check limits
