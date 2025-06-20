@@ -49,12 +49,16 @@ source install/setup.bash
 ros2 launch moveit_resources_panda_moveit_config demo.launch.py
 
 
-# 注意容器名称已更新
-docker exec -it panda_simulation_env bash
-# 在新的Docker终端内
-cd /ros2_ws
-source install/setup.bash
 
-# --- 现在可以执行其他ROS2命令了 ---
-# ros2 topic list
-# ros2 control list_controllers
+  第三步：运行你的代码
+
+  # 新开第二个终端连接到容器
+  docker exec -it panda_simulation_env bash
+
+  cd /ros2_ws
+  colcon build --symlink-install
+  source install/setup.bash
+
+
+  # 运行主控制器
+  ros2 run main_controller main_controller

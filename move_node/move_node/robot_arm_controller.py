@@ -8,6 +8,7 @@ All movements are blocking and auto-wait for completion.
 import math
 from .joint_controller import JointController
 from .position_controller import PositionController
+from .gripper_controller import GripperController
 
 class RobotArmController:
     """
@@ -18,23 +19,27 @@ class RobotArmController:
     def __init__(self):
         self.joint_controller = JointController()
         self.position_controller = PositionController()
+        self.gripper_controller = GripperController()
         self.HOME_POSITION = [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785]  # Panda ready position
         self._pause_between_movements = 0.5  # Default pause in seconds
         
         # Define safe workspace boundaries (in meters)
-        # Based on Panda specs: 855mm reach, typical working height 0.1-1.0m
+        # Based on Panda specs: 855mm reach, mounted at table edge
+        # Coordinate system: x=forward, y=left, z=up from base
         self.WORKSPACE_LIMITS = {
-            'x_min': -0.7,    # Left limit
-            'x_max': +0.7,    # Right limit  
-            'y_min': -0.7,    # Back limit
-            'y_max': +0.7,    # Front limit
-            'z_min': 0.1,     # Lower limit (table height)
-            'z_max': 1.2      # Upper limit
+            'x_min': -0.6,    # Behind base limit
+            'x_max': +0.8,    # Forward reach limit  
+            'y_min': -0.6,    # Right limit
+            'y_max': +0.6,    # Left limit
+            'z_min': 0.2,     # Above table surface
+            'z_max': 1.0      # Safe upper limit
         }
 
     def is_connected(self):
         """Check if robot is connected."""
-        return self.joint_controller.is_connected() and self.position_controller.is_connected()
+        return (self.joint_controller.is_connected() and 
+                self.position_controller.is_connected() and 
+                self.gripper_controller.is_connected())
 
     def _is_position_safe(self, x, y, z):
         """
@@ -103,30 +108,48 @@ class RobotArmController:
         """
         angles = [j1, j2, j3, j4, j5, j6, j7]
         
-        # Check joint limits for Panda (in radians)
-        # Panda joint limits based on specifications
+        # Check joint limits for Panda (in radians) - from URDF
         joint_limits = [
-            (-2.8973, 2.8973),     # J1: ±166°
-            (-1.7628, 1.7628),     # J2: ±101°
-            (-2.8973, 2.8973),     # J3: ±166°
-            (-3.0718, -0.0698),    # J4: -176° to -4°
-            (-2.8973, 2.8973),     # J5: ±166°
-            (-0.0175, 3.7525),     # J6: -1° to 215°
-            (-2.8973, 2.8973),     # J7: ±166°
+            (-2.9671, 2.9671),     # J1: ±170°
+            (-1.8326, 1.8326),     # J2: ±105°
+            (-2.9671, 2.9671),     # J3: ±170°
+            (-3.1416, 0.0873),     # J4: -180° to +5°
+            (-2.9671, 2.9671),     # J5: ±170°
+            (-0.0873, 3.8223),     # J6: -5° to +219°
+            (-2.9671, 2.9671),     # J7: ±170°
         ]
         
-        # Normalize angles to shortest path and check limits
+        # Get current joint positions for shortest path calculation
+        current_positions = self.get_current_joint_angles_radians()
+        if current_positions is None:
+            current_positions = [0.0] * 7  # Default if no current position available
+        
+        # Normalize angles considering shortest path and joint limits
         normalized_angles = []
         for i, angle in enumerate(angles):
-            # Normalize to -π to π range first
-            normalized = ((angle + math.pi) % (2*math.pi)) - math.pi
-            
-            # Check if within joint limits
             min_limit, max_limit = joint_limits[i]
-            if normalized < min_limit or normalized > max_limit:
-                print(f"⚠️  Warning: Joint {i+1} angle {math.degrees(normalized):.1f}° exceeds limits ({math.degrees(min_limit):.1f}° to {math.degrees(max_limit):.1f}°)")
-                # Clamp to limits
-                normalized = max(min_limit, min(max_limit, normalized))
+            current_angle = current_positions[i] if i < len(current_positions) else 0.0
+            
+            # Find the equivalent angle closest to current position
+            # Consider multiple wraps: angle, angle±2π, angle±4π
+            candidates = [
+                angle,
+                angle + 2*math.pi,
+                angle - 2*math.pi,
+                angle + 4*math.pi,
+                angle - 4*math.pi
+            ]
+            
+            # Filter candidates that are within joint limits
+            valid_candidates = [a for a in candidates if min_limit <= a <= max_limit]
+            
+            if valid_candidates:
+                # Choose the candidate closest to current position
+                normalized = min(valid_candidates, key=lambda a: abs(a - current_angle))
+            else:
+                # If no valid candidate, clamp to limits
+                normalized = max(min_limit, min(max_limit, angle))
+                print(f"⚠️  Warning: Joint {i+1} angle {math.degrees(angle):.1f}° cannot be reached within limits")
                 print(f"   Clamped to: {math.degrees(normalized):.1f}°")
             
             normalized_angles.append(normalized)
@@ -269,6 +292,121 @@ class RobotArmController:
                 pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w
             )
         return None
+
+    # ==================== GRIPPER CONTROL API ====================
+    
+    def open_gripper(self):
+        """
+        Open gripper to maximum safe width.
+        :return: True if successful
+        """
+        print("Opening gripper")
+        success = self.gripper_controller.open_gripper()
+        if self._pause_between_movements > 0:
+            import time
+            time.sleep(self._pause_between_movements)
+        return success
+    
+    def close_gripper(self):
+        """
+        Close gripper completely.
+        :return: True if successful
+        """
+        print("Closing gripper")
+        success = self.gripper_controller.close_gripper()
+        if self._pause_between_movements > 0:
+            import time
+            time.sleep(self._pause_between_movements)
+        return success
+    
+    def grasp_with_force(self, max_force=30.0, target_width=0.01):
+        """
+        Attempt to grasp an object with specified maximum force.
+        :param max_force: Maximum grasping force in Newtons
+        :param target_width: Minimum width to maintain in meters
+        :return: True if grasp attempt completed
+        """
+        print(f"Attempting to grasp with force: {max_force:.1f}N")
+        success = self.gripper_controller.grasp_object(
+            target_width=target_width, 
+            max_effort=max_force
+        )
+        if self._pause_between_movements > 0:
+            import time
+            time.sleep(self._pause_between_movements)
+        return success
+    
+    def move_gripper_to_width(self, width, max_force=50.0):
+        """
+        Move gripper to specific width.
+        :param width: Target width in meters (0.0 = closed, 0.08 = fully open)
+        :param max_force: Maximum force in Newtons
+        :return: True if successful
+        """
+        print(f"Moving gripper to width: {width*1000:.1f}mm")
+        success = self.gripper_controller.move_to_width(width, max_force)
+        if self._pause_between_movements > 0:
+            import time
+            time.sleep(self._pause_between_movements)
+        return success
+    
+    # ==================== GRIPPER STATUS API ====================
+    
+    def get_gripper_width(self):
+        """
+        Get current gripper width in meters.
+        :return: Width in meters, or None if unavailable
+        """
+        return self.gripper_controller.get_current_width()
+    
+    def is_gripper_open(self):
+        """
+        Check if gripper is nearly fully open.
+        :return: True if gripper is open (> 60mm)
+        """
+        width = self.get_gripper_width()
+        return width is not None and width > 0.06
+    
+    def is_gripper_closed(self):
+        """
+        Check if gripper is nearly fully closed.
+        :return: True if gripper is closed (< 5mm)
+        """
+        width = self.get_gripper_width()
+        return width is not None and width < 0.005
+    
+    def is_grasping_object(self):
+        """
+        Intelligent detection of whether gripper is grasping an object.
+        Based on position, force, and stall detection.
+        :return: True if likely grasping an object
+        """
+        return self.gripper_controller.is_grasping()
+    
+    def get_gripper_info(self):
+        """
+        Get comprehensive gripper status information.
+        :return: Dictionary with gripper state information
+        """
+        width = self.get_gripper_width()
+        state = self.gripper_controller.get_gripper_state()
+        
+        info = {
+            'width_mm': width * 1000 if width is not None else None,
+            'width_m': width,
+            'is_open': self.is_gripper_open(),
+            'is_closed': self.is_gripper_closed(),
+            'is_grasping': self.is_grasping_object()
+        }
+        
+        if state:
+            info.update({
+                'force_N': state.effort,
+                'is_stalled': state.stalled,
+                'reached_goal': state.reached_goal
+            })
+        
+        return info
 
 
 def main(args=None):
