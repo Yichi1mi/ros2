@@ -7,6 +7,7 @@ import time
 import rclpy
 
 from move_node.robot_arm_controller import RobotArmController
+from scene_manager.scene_manager import SceneManager
 
 def main():
     rclpy.init()
@@ -15,14 +16,21 @@ def main():
         print("Starting main controller")
         print("=" * 50)
         
-        # Create robot
+        # Create robot and scene manager
         robot = RobotArmController()
+        scene_manager = SceneManager()
         
         if not robot.is_connected():
             print("Failed to connect to robot arm")
             return
         
         print("Robot connected successfully!")
+        
+        # Setup default scene with table and objects
+        print("🏗️ Setting up planning scene...")
+        scene_manager.setup_default_scene()
+        print("Scene objects:", scene_manager.get_object_list())
+        time.sleep(2)  # Allow scene to be published
         
         try:
             # Set speed and pause between movements
@@ -174,6 +182,52 @@ def main():
             robot.pause(1.0)
             
             print("=== 夹爪控制测试完成 ===")
+            print()
+            
+            # ========================================
+            # 场景交互测试
+            # ========================================
+            print("=== 场景交互测试 ===")
+            
+            print("15. 移动到桌面上方观察位置")
+            # 移动到桌面中央上方安全高度
+            robot.move_to_position(0.5, 0.0, 0.4, 1.000, 0.000, 0.000, 0.000)
+            robot.pause(1.0)
+            
+            print("16. 移动到圆柱体上方 (不抓取)")
+            # 圆柱体位置: x=0.3, y=0.2, z=0.05，移动到其上方20cm
+            robot.move_to_position(0.3, 0.2, 0.25, 1.000, 0.000, 0.000, 0.000)
+            robot.pause(1.0)
+            
+            print("17. 移动到立方体上方 (不抓取)")
+            # 立方体位置: x=0.4, y=-0.2, z=0.025，移动到其上方20cm
+            robot.move_to_position(0.4, -0.2, 0.225, 1.000, 0.000, 0.000, 0.000)
+            robot.pause(1.0)
+            
+            print("18. 测试场景管理功能")
+            print("    - 移除圆柱体")
+            scene_manager.remove_object("soda_can")
+            robot.pause(2.0)
+            
+            print("    - 重新添加圆柱体在新位置")
+            scene_manager.add_cylinder(x=0.2, y=-0.3, z=0.05, 
+                                     radius=0.03, height=0.1, 
+                                     object_id="soda_can_new")
+            robot.pause(2.0)
+            
+            print("    - 添加第二个立方体")
+            scene_manager.add_cube(x=0.6, y=0.1, z=0.025, 
+                                 size=0.03, 
+                                 object_id="small_cube")
+            robot.pause(2.0)
+            
+            print("    - 当前场景物体:", scene_manager.get_object_list())
+            
+            print("19. 返回安全位置")
+            robot.move_to_home()
+            robot.pause(1.0)
+            
+            print("=== 场景交互测试完成 ===")
             print()
             
             
