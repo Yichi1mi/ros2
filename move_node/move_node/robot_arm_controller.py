@@ -31,7 +31,7 @@ class RobotArmController:
             'x_max': +0.8,    # Forward reach limit  
             'y_min': -0.6,    # Right limit
             'y_max': +0.6,    # Left limit
-            'z_min': 0.2,     # Above table surface
+            'z_min': 0.15,    # Above elevated table surface (20cm + safety)
             'z_max': 1.0      # Safe upper limit
         }
 

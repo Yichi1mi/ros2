@@ -32,11 +32,6 @@ docker build -t ros2_panda_sim:latest .
 
 # 确认您在容器内的 /ros2_ws 目录下
 cd /ros2_ws
-
-# (可选但推荐) 安装或更新依赖
-rosdep install --from-paths src --ignore-src -r -y
-
-# 编译您的工作空间
 colcon build --symlink-install
 
 
@@ -57,8 +52,9 @@ ros2 launch moveit_resources_panda_moveit_config demo.launch.py
 
   cd /ros2_ws
   colcon build --symlink-install
-  source install/setup.bash
+
 
 
   # 运行主控制器
+  source install/setup.bash
   ros2 run main_controller main_controller

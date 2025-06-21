@@ -5,28 +5,22 @@ Handles table, objects, and obstacles in the robot workspace
 """
 
 import rclpy
+from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, Point, Quaternion
 from shape_msgs.msg import SolidPrimitive
 from moveit_msgs.msg import CollisionObject, PlanningScene
 from moveit_msgs.srv import ApplyPlanningScene
 from std_msgs.msg import Header
 
-# Import from robot_common package
-from robot_common import RobotConnectionBase
-
-class SceneManager(RobotConnectionBase):
+class SceneManager(Node):
     """
     Manager for MoveIt Planning Scene objects.
     Adds tables, objects, and obstacles to the robot's environment.
     """
     
     def __init__(self):
-        # Initialize base class
-        super().__init__(
-            node_name='scene_manager',
-            action_name=None,  # No action client needed
-            action_type=None
-        )
+        # Initialize ROS2 node
+        super().__init__('scene_manager')
         
         # Planning scene publisher
         self._scene_publisher = self.create_publisher(
@@ -43,15 +37,6 @@ class SceneManager(RobotConnectionBase):
         time.sleep(1.0)
         
         self.get_logger().info('Scene manager initialized')
-    
-    def _on_connection_established(self):
-        """Initialize after connection - scene manager is always ready"""
-        self.get_logger().info('Scene manager ready')
-        return True
-    
-    def is_connected(self):
-        """Scene manager is always considered connected"""
-        return True
     
     def clear_scene(self):
         """
@@ -247,28 +232,29 @@ class SceneManager(RobotConnectionBase):
     
     def setup_default_scene(self):
         """
-        Set up a default scene with table and common objects.
+        Set up a default scene with elevated table and objects for pick-and-place testing.
         """
-        self.get_logger().info('Setting up default scene')
+        self.get_logger().info('Setting up elevated scene for pick-and-place testing')
         
         # Clear existing scene
         self.clear_scene()
         
-        # Add table as workspace surface
-        self.add_table(x=0.5, y=0.0, z=-0.01, 
-                      length=1.2, width=0.8, height=0.02)
+        # Add elevated smaller table (20cm higher, smaller size)
+        self.add_table(x=0.4, y=0.0, z=0.19, 
+                      length=0.6, width=0.4, height=0.02, 
+                      object_id="elevated_table")
         
-        # Add cylinder object (soda can)
-        self.add_cylinder(x=0.3, y=0.2, z=0.05, 
+        # Add cylinder object (soda can) on table surface
+        self.add_cylinder(x=0.3, y=0.1, z=0.25, 
                          radius=0.03, height=0.1, 
                          object_id="soda_can")
         
-        # Add cube object (small box)
-        self.add_cube(x=0.4, y=-0.2, z=0.025, 
+        # Add cube object (small box) on table surface
+        self.add_cube(x=0.35, y=-0.15, z=0.225, 
                      size=0.05, 
                      object_id="small_box")
         
-        self.get_logger().info('Default scene setup complete')
+        self.get_logger().info('Elevated scene setup complete - table at 20cm height')
     
     def get_object_list(self):
         """
