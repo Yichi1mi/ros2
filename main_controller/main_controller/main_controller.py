@@ -20,11 +20,21 @@ def main():
         robot = RobotArmController()
         scene_manager = SceneManager()
         
-        if not robot.is_connected():
-            print("Failed to connect to robot arm")
+        # Check component connections
+        arm_connected = robot.is_connected()
+        gripper_connected = robot.is_gripper_connected()
+        
+        print(f"🤖 Robot arm connected: {arm_connected}")
+        print(f"🤏 Gripper connected: {gripper_connected}")
+        
+        if not arm_connected:
+            print("❌ Failed to connect to robot arm")
             return
         
-        print("Robot connected successfully!")
+        if not gripper_connected:
+            print("⚠️  Gripper not connected. Continuing with arm-only tests.")
+        
+        print("✅ Robot system ready!")
         
         # Setup default scene with table and objects
         print("🏗️ Setting up planning scene...")
@@ -46,14 +56,25 @@ def main():
             # YOUR CODE GOES HERE - 你的代码写在这里
             # ========================================
 
-            # Display workspace information
-            print("📋 Workspace Information:")
+            # Display system information
+            print("📋 System Information:")
             workspace_info = robot.get_workspace_info()
             limits = workspace_info['limits']
             print(f"   Safe X range: {limits['x_min']:.1f} to {limits['x_max']:.1f}m")
             print(f"   Safe Y range: {limits['y_min']:.1f} to {limits['y_max']:.1f}m") 
             print(f"   Safe Z range: {limits['z_min']:.1f} to {limits['z_max']:.1f}m")
             print(f"   Max reach: {workspace_info['max_reach']:.2f}m from origin")
+            
+            # Display gripper information
+            if gripper_connected:
+                gripper_info = robot.get_gripper_info()
+                print(f"   Gripper available: ✅")
+                if gripper_info['is_homed']:
+                    print(f"   Gripper max width: {gripper_info['max_width_mm']:.1f}mm")
+                else:
+                    print(f"   Gripper status: Not homed")
+            else:
+                print(f"   Gripper available: ❌")
             print()
 
             # initial home position
@@ -61,204 +82,115 @@ def main():
             robot.move_to_home()
             robot.pause(0.5)   
 
-            # print("1. 关节空间运动到位置1")
-            # robot.move_to_joint_positions(1.0, -0.5, 0.0, -1.5, 0.0, 1.0, 0.5)
-            # robot.pause(0.5)
+            print("1. 关节空间运动到位置1")
+            robot.move_to_joint_positions(1.0, -0.5, 0.0, -1.5, 0.0, 1.0, 0.5)
+            robot.pause(0.5)
             
-            # print("1.5. 测试关节限制处理")
-            # # 测试一个超出限制的角度 (例如 J3 超出限制)
-            # robot.move_to_joint_positions(0.5, -0.5, 4.0, -1.5, 0.0, 1.0, 0.5)  # J3=4.0 rad 超出限制
-            # robot.pause(0.5)
+            print("1.5. 测试关节限制处理")
+            # 测试一个超出限制的角度 (例如 J3 超出限制)
+            robot.move_to_joint_positions(0.5, -0.5, 4.0, -1.5, 0.0, 1.0, 0.5)  # J3=4.0 rad 超出限制
+            robot.pause(0.5)
 
-            # print("2. 相对运动测试")
-            # robot.move_relative(0.0, 0.0, -0.1)  # 向下10cm
-            # robot.pause(0.5)              
+            print("2. 相对运动测试")
+            robot.move_relative(0.0, 0.0, -0.1)  # 向下10cm
+            robot.pause(0.5)              
 
-            # print("3. 绝对位置控制 (安全位置)")
-            # robot.move_to_position(0.4, 0.0, 0.5, 1.000, 0.000, 0.000, 0.000)
-            # robot.pause(0.5)  
+            print("3. 绝对位置控制 (安全位置)")
+            robot.move_to_position(0.4, 0.0, 0.5, 1.000, 0.000, 0.000, 0.000)
+            robot.pause(0.5)  
 
-            # print("4. 绝对位置控制 (安全位置)")
-            # robot.move_to_position(0.5, 0.3, 0.7, 1.000, 0.000, 0.000, 0.000)
-            # robot.pause(0.5)
+            print("4. 绝对位置控制 (安全位置)")
+            robot.move_to_position(0.5, 0.3, 0.7, 1.000, 0.000, 0.000, 0.000)
+            robot.pause(0.5)
 
-            # print("5. 🧪 测试工作空间边界保护 - 尝试超出X边界")
-            # print("   尝试移动到 X=1.0m (超出前边界 0.8m)")
-            # robot.move_to_position(1.0, 0.0, 0.5, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
-            # robot.pause(0.5)
+            print("5. 🧪 测试工作空间边界保护 - 尝试超出X边界")
+            print("   尝试移动到 X=1.0m (超出前边界 0.8m)")
+            robot.move_to_position(1.0, 0.0, 0.5, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            robot.pause(0.5)
 
-            # print("6. 🧪 测试工作空间边界保护 - 尝试超出Z下边界")
-            # print("   尝试移动到 Z=0.1m (低于下边界 0.2m)")
-            # robot.move_to_position(0.4, 0.0, 0.1, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
-            # robot.pause(0.5)
+            print("6. 🧪 测试工作空间边界保护 - 尝试超出Z下边界")
+            print("   尝试移动到 Z=0.1m (低于下边界 0.2m)")
+            robot.move_to_position(0.4, 0.0, 0.1, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            robot.pause(0.5)
 
-            # print("7. 🧪 测试工作空间边界保护 - 尝试超出最大reach")
-            # print("   尝试移动到距离原点1.0m的位置 (超出最大reach 0.855m)")
-            # robot.move_to_position(0.7, 0.5, 0.7, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
-            # robot.pause(0.5)
+            print("7. 🧪 测试工作空间边界保护 - 尝试超出最大reach")
+            print("   尝试移动到距离原点1.0m的位置 (超出最大reach 0.855m)")
+            robot.move_to_position(0.7, 0.5, 0.7, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            robot.pause(0.5)
 
-            # print("8. 回到接近home的位置")
-            # robot.move_to_position(0.4, 0.0, 0.6, 1.000, 0.000, 0.000, 0.000)
-            # robot.pause(0.5)
+            print("8. 回到接近home的位置")
+            robot.move_to_position(0.4, 0.0, 0.6, 1.000, 0.000, 0.000, 0.000)
+            robot.pause(0.5)
             
-            # print("9. 回到home位置")
-            # robot.move_to_home()
+            print("9. 回到home位置")
+            robot.move_to_home()
             
             print("=== 工作空间安全测试完成 ===")
             print()
             
             # ========================================
-            # 夹爪控制测试
+            # GRIPPER CONTROL TESTS - 抓手控制测试
             # ========================================
-            
-            print("=== 夹爪控制测试开始 ===")
-            
-            print("10. 夹爪开合基础测试")
-            print("    - 打开夹爪")
-            robot.open_gripper()
-            robot.pause(1.0)
-            
-            # 显示夹爪状态
-            gripper_info = robot.get_gripper_info()
-            print(f"    夹爪状态: 宽度={gripper_info['width_mm']:.1f}mm, 是否张开={gripper_info['is_open']}")
-            
-            print("    - 关闭夹爪")
-            robot.close_gripper()
-            robot.pause(1.0)
-            
-            gripper_info = robot.get_gripper_info()
-            print(f"    夹爪状态: 宽度={gripper_info['width_mm']:.1f}mm, 是否关闭={gripper_info['is_closed']}")
-            
-            # print("11. 夹爪精确位置控制测试")
-            # test_widths = [0.02, 0.04, 0.06]  # 20mm, 40mm, 60mm
-            # for width in test_widths:
-            #     print(f"    - 移动到 {width*1000:.0f}mm")
-            #     robot.move_gripper_to_width(width)
-            #     robot.pause(0.8)
-            #     actual_width = robot.get_gripper_width()
-            #     if actual_width:
-            #         print(f"      实际宽度: {actual_width*1000:.1f}mm")
-            
-            # print("12. 智能抓取力控制测试")
-            # robot.open_gripper()
-            # robot.pause(1.0)
-            
-            # print("    - 尝试轻力抓取 (20N)")
-            # robot.grasp_with_force(max_force=20.0, target_width=0.005)
-            # robot.pause(2.0)
-            
-            # if robot.is_grasping_object():
-            #     print("    ✅ 检测到抓取物体！")
-            #     gripper_info = robot.get_gripper_info()
-            #     print(f"      抓取宽度: {gripper_info['width_mm']:.1f}mm")
-            #     print(f"      抓取力: {gripper_info.get('force_N', 'N/A'):.1f}N")
-            # else:
-            #     print("    ❌ 未检测到物体")
-            
-            # print("    - 尝试强力抓取 (50N)")
-            # robot.grasp_with_force(max_force=50.0, target_width=0.002)
-            # robot.pause(2.0)
-            
-            # gripper_info = robot.get_gripper_info()
-            # print(f"    抓取状态: {gripper_info}")
-            
-            # print("13. 夹爪状态检测综合测试")
-            # print("    - 完全张开状态检测")
-            # robot.open_gripper()
-            # robot.pause(1.0)
-            # print(f"      是否张开: {robot.is_gripper_open()}")
-            # print(f"      是否关闭: {robot.is_gripper_closed()}")
-            # print(f"      是否抓取: {robot.is_grasping_object()}")
-            
-            # print("    - 完全关闭状态检测")
-            # robot.close_gripper()
-            # robot.pause(1.0)
-            # print(f"      是否张开: {robot.is_gripper_open()}")
-            # print(f"      是否关闭: {robot.is_gripper_closed()}")
-            # print(f"      是否抓取: {robot.is_grasping_object()}")
-            
-            print("14. 恢复到标准状态")
-            robot.open_gripper()  # 张开夹爪，准备下次使用
-            robot.pause(1.0)
-            
-            print("=== 夹爪控制测试完成 ===")
-            print()
-            
-            # ========================================
-            # Pick-and-Place 抓取测试
-            # ========================================
-            print("=== Pick-and-Place 抓取测试 ===")
-            
-            print("15. 移动到桌面上方观察位置")
-            # 移动到抬高桌面中央上方安全高度
-            robot.move_to_position(0.4, 0.0, 0.5, 1.000, 0.000, 0.000, 0.000)
-            robot.pause(1.0)
-            
-            print("16. 移动到圆柱体上方观察点")
-            # 圆柱体位置: x=0.3, y=0.1, z=0.25，移动到其上方15cm
-            robot.move_to_position(0.3, 0.1, 0.4, 1.000, 0.000, 0.000, 0.000)
-            robot.pause(1.0)
-            
-            print("17. 对准圆柱体中心，准备抓取")
-            # 张开夹爪准备抓取
-            robot.open_gripper()
-            robot.pause(1.0)
-            
-            print("18. 向下移动到抓取高度")
-            # 下降到圆柱体中心高度进行抓取
-            robot.move_to_position(0.3, 0.1, 0.3, 1.000, 0.000, 0.000, 0.000)
-            robot.pause(1.0)
-            
-            print("19. 力控抓取圆柱体")
-            # 使用力控抓取
-            robot.grasp_with_force(max_force=25.0, target_width=0.01)
-            robot.pause(2.0)
-            
-            # 检查抓取状态
-            gripper_info = robot.get_gripper_info()
-            print(f"    抓取状态: {gripper_info}")
-            if robot.is_grasping_object():
-                print("    ✅ 成功抓取圆柱体！")
+            if gripper_connected:
+                print("=== GRIPPER CONTROL TESTS ===")
+                print("开始抓手控制测试...")
+                
+                try:
+                    # 1. Home gripper
+                    print("1. 校准抓手 (Homing gripper)...")
+                    if robot.home_gripper():
+                        gripper_info = robot.get_gripper_info()
+                        if gripper_info['max_width_mm']:
+                            print(f"   抓手校准成功! 最大开口: {gripper_info['max_width_mm']:.1f}mm")
+                    robot.pause(1.0)
+                    
+                    # 2. Basic open/close test
+                    print("2. 基础开关测试...")
+                    print("   打开抓手...")
+                    robot.open_gripper()
+                    
+                    print("   关闭抓手...")
+                    robot.close_gripper()
+                    
+                    # 3. Specific width control
+                    print("3. 精确宽度控制测试...")
+                    print("   设置到50mm...")
+                    robot.set_gripper_width(50)
+                    
+                    print("   设置到30mm...")
+                    robot.set_gripper_width(30)
+                    
+                    print("   设置到10mm...")
+                    robot.set_gripper_width(10)
+                    
+                    print("   重新打开...")
+                    robot.open_gripper()
+                    
+                    # 4. Grasp force test
+                    print("4. 抓取力度测试...")
+                    print("   轻力抓取测试 (20N)...")
+                    robot.grasp_object(force_n=20.0)
+                    robot.pause(1.0)
+                    
+                    print("   中力抓取测试 (40N)...")
+                    robot.grasp_object(force_n=40.0)
+                    robot.pause(1.0)
+                    
+                    # 5. Final open
+                    print("5. 最终打开抓手...")
+                    robot.open_gripper()
+                    
+                    print("=== 抓手测试完成 ===")
+                    
+                except Exception as e:
+                    print(f"❌ 抓手测试出错: {e}")
+                    print("继续其他测试...")
+                
+                print()
             else:
-                print("    ⚠️ 可能未成功抓取")
-            
-            print("20. 抬起物体")
-            # 向上提升物体
-            robot.move_to_position(0.3, 0.1, 0.45, 1.000, 0.000, 0.000, 0.000)
-            robot.pause(1.5)
-            
-            print("21. 移动到新位置")
-            # 将物体移动到桌子另一侧
-            robot.move_to_position(0.45, -0.1, 0.45, 1.000, 0.000, 0.000, 0.000)
-            robot.pause(1.5)
-            
-            print("22. 放下物体到桌面")
-            # 下降到桌面高度
-            robot.move_to_position(0.45, -0.1, 0.3, 1.000, 0.000, 0.000, 0.000)
-            robot.pause(1.5)
-            
-            print("23. 松开夹爪，释放物体")
-            # 释放物体
-            robot.open_gripper()
-            robot.pause(2.0)
-            
-            print("24. 抬起夹爪")
-            # 向上移动避免碰撞
-            robot.move_to_position(0.45, -0.1, 0.4, 1.000, 0.000, 0.000, 0.000)
-            robot.pause(1.0)
-            
-            print("25. 移动到立方体上方观察")
-            # 移动到立方体上方位置
-            robot.move_to_position(0.35, -0.15, 0.4, 1.000, 0.000, 0.000, 0.000)
-            robot.pause(1.5)
-            
-            print("26. 返回Home位置结束")
-            robot.move_to_home()
-            robot.pause(1.0)
-            
-            print("=== Pick-and-Place 抓取测试完成 ===")
-            print("✅ 成功完成圆柱体抓取、移动、放置全流程！")
-            print()
+                print("=== GRIPPER TESTS SKIPPED ===")
+                print("抓手不可用，跳过抓手测试")
+                print()
             
             
         except KeyboardInterrupt:

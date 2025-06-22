@@ -21,16 +21,16 @@ class JointController(RobotConnectionBase):
     """
     
     def __init__(self):
-        # Joint configuration for Panda
+        # Joint configuration for FR3 Franka
         self._joint_names = [
-            'panda_joint1', 'panda_joint2', 'panda_joint3',
-            'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7'
+            'fr3_joint1', 'fr3_joint2', 'fr3_joint3',
+            'fr3_joint4', 'fr3_joint5', 'fr3_joint6', 'fr3_joint7'
         ]
         
         # Initialize base class
         super().__init__(
             node_name='joint_controller',
-            action_name='/panda_arm_controller/follow_joint_trajectory',
+            action_name='/fr3_arm_controller/follow_joint_trajectory',
             action_type=FollowJointTrajectory
         )
     
@@ -69,7 +69,7 @@ class JointController(RobotConnectionBase):
             return False
         
         if len(target_positions) != 7:
-            self.get_logger().error(f'Expected 7 joint positions for Panda, got {len(target_positions)}')
+            self.get_logger().error(f'Expected 7 joint positions for FR3, got {len(target_positions)}')
             return False
         
         # Calculate movement duration
@@ -172,7 +172,7 @@ def main(args=None):
             controller.set_velocity_percentage(30)
             controller.set_position_tolerance(0.02)
 
-            # 测试用点位，仅供开发自测 (Panda 7-DOF)
+            # 测试用点位，仅供开发自测 (FR3 7-DOF)
             test_positions = [
                 ([0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785], "Moving to ready position..."),
                 ([0.785, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785], "Moving to 45 degrees..."),

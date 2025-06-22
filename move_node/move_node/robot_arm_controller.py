@@ -20,11 +20,11 @@ class RobotArmController:
         self.joint_controller = JointController()
         self.position_controller = PositionController()
         self.gripper_controller = GripperController()
-        self.HOME_POSITION = [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785]  # Panda ready position
+        self.HOME_POSITION = [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785]  # FR3 ready position
         self._pause_between_movements = 0.5  # Default pause in seconds
         
         # Define safe workspace boundaries (in meters)
-        # Based on Panda specs: 855mm reach, mounted at table edge
+        # Based on FR3 specs: 855mm reach, mounted at table edge
         # Coordinate system: x=forward, y=left, z=up from base
         self.WORKSPACE_LIMITS = {
             'x_min': -0.6,    # Behind base limit
@@ -36,10 +36,13 @@ class RobotArmController:
         }
 
     def is_connected(self):
-        """Check if robot is connected."""
+        """Check if robot arm is connected (gripper optional)."""
         return (self.joint_controller.is_connected() and 
-                self.position_controller.is_connected() and 
-                self.gripper_controller.is_connected())
+                self.position_controller.is_connected())
+    
+    def is_gripper_connected(self):
+        """Check if gripper is connected."""
+        return self.gripper_controller.is_connected()
 
     def _is_position_safe(self, x, y, z):
         """
@@ -69,7 +72,7 @@ class RobotArmController:
         
         # Check distance from origin (additional safety check)
         distance_from_origin = math.sqrt(x*x + y*y + z*z)
-        max_safe_distance = 0.855  # Panda max reach is 855mm
+        max_safe_distance = 0.855  # FR3 max reach is 855mm
         if distance_from_origin > max_safe_distance:
             errors.append(f"Distance from origin {distance_from_origin:.3f}m exceeds max reach ({max_safe_distance:.3f}m)")
         
@@ -103,12 +106,12 @@ class RobotArmController:
     def move_to_joint_positions(self, j1, j2, j3, j4, j5, j6, j7):
         """
         Move to joint positions (blocking, auto-wait for completion).
-        :param j1-j7: Joint angles in radians for Panda
+        :param j1-j7: Joint angles in radians for FR3
         :return: True if successful
         """
         angles = [j1, j2, j3, j4, j5, j6, j7]
         
-        # Check joint limits for Panda (in radians) - from URDF
+        # Check joint limits for FR3 (in radians) - from URDF
         joint_limits = [
             (-2.9671, 2.9671),     # J1: ±170°
             (-1.8326, 1.8326),     # J2: ±105°
@@ -293,120 +296,103 @@ class RobotArmController:
             )
         return None
 
-    # ==================== GRIPPER CONTROL API ====================
+    # ========================================
+    # Gripper Control Methods
+    # ========================================
+    
+    def home_gripper(self):
+        """Home the gripper and determine maximum width"""
+        print("Homing gripper...")
+        success = self.gripper_controller.home_gripper()
+        if success:
+            max_width = self.gripper_controller.get_max_width()
+            print(f"Gripper homed successfully! Max width: {max_width*1000:.1f}mm")
+        else:
+            print("❌ Failed to home gripper")
+        return success
     
     def open_gripper(self):
-        """
-        Open gripper to maximum safe width.
-        :return: True if successful
-        """
-        print("Opening gripper")
+        """Open gripper to maximum width"""
+        print("Opening gripper...")
         success = self.gripper_controller.open_gripper()
-        if self._pause_between_movements > 0:
+        if success:
+            print("✅ Gripper opened")
+        else:
+            print("❌ Failed to open gripper")
+        
+        if success and self._pause_between_movements > 0:
             import time
             time.sleep(self._pause_between_movements)
         return success
     
     def close_gripper(self):
-        """
-        Close gripper completely.
-        :return: True if successful
-        """
-        print("Closing gripper")
+        """Close gripper completely"""
+        print("Closing gripper...")
         success = self.gripper_controller.close_gripper()
-        if self._pause_between_movements > 0:
+        if success:
+            print("✅ Gripper closed")
+        else:
+            print("❌ Failed to close gripper")
+        
+        if success and self._pause_between_movements > 0:
             import time
             time.sleep(self._pause_between_movements)
         return success
     
-    def grasp_with_force(self, max_force=30.0, target_width=0.01):
+    def set_gripper_width(self, width_mm):
         """
-        Attempt to grasp an object with specified maximum force.
-        :param max_force: Maximum grasping force in Newtons
-        :param target_width: Minimum width to maintain in meters
-        :return: True if grasp attempt completed
+        Set gripper to specific width
+        
+        Args:
+            width_mm: Target width in millimeters (0-80mm typically)
         """
-        print(f"Attempting to grasp with force: {max_force:.1f}N")
-        success = self.gripper_controller.grasp_object(
-            target_width=target_width, 
-            max_effort=max_force
-        )
-        if self._pause_between_movements > 0:
+        width_m = width_mm / 1000.0  # Convert to meters
+        print(f"Setting gripper width to {width_mm:.1f}mm...")
+        success = self.gripper_controller.move_to_width(width_m)
+        if success:
+            print(f"✅ Gripper set to {width_mm:.1f}mm")
+        else:
+            print(f"❌ Failed to set gripper to {width_mm:.1f}mm")
+        
+        if success and self._pause_between_movements > 0:
             import time
             time.sleep(self._pause_between_movements)
         return success
     
-    def move_gripper_to_width(self, width, max_force=50.0):
+    def grasp_object(self, force_n=30.0):
         """
-        Move gripper to specific width.
-        :param width: Target width in meters (0.0 = closed, 0.08 = fully open)
-        :param max_force: Maximum force in Newtons
-        :return: True if successful
+        Attempt to grasp an object with specified force
+        
+        Args:
+            force_n: Grasping force in Newtons
         """
-        print(f"Moving gripper to width: {width*1000:.1f}mm")
-        success = self.gripper_controller.move_to_width(width, max_force)
-        if self._pause_between_movements > 0:
+        print(f"Attempting to grasp object with {force_n:.1f}N force...")
+        success = self.gripper_controller.grasp(width=0.01, force=force_n)
+        if success:
+            print("✅ Grasp attempt completed")
+        else:
+            print("❌ Grasp attempt failed")
+        
+        if success and self._pause_between_movements > 0:
             import time
             time.sleep(self._pause_between_movements)
         return success
-    
-    # ==================== GRIPPER STATUS API ====================
-    
-    def get_gripper_width(self):
-        """
-        Get current gripper width in meters.
-        :return: Width in meters, or None if unavailable
-        """
-        return self.gripper_controller.get_current_width()
-    
-    def is_gripper_open(self):
-        """
-        Check if gripper is nearly fully open.
-        :return: True if gripper is open (> 60mm)
-        """
-        width = self.get_gripper_width()
-        return width is not None and width > 0.06
-    
-    def is_gripper_closed(self):
-        """
-        Check if gripper is nearly fully closed.
-        :return: True if gripper is closed (< 5mm)
-        """
-        width = self.get_gripper_width()
-        return width is not None and width < 0.005
-    
-    def is_grasping_object(self):
-        """
-        Intelligent detection of whether gripper is grasping an object.
-        Based on position, force, and stall detection.
-        :return: True if likely grasping an object
-        """
-        return self.gripper_controller.is_grasping()
     
     def get_gripper_info(self):
-        """
-        Get comprehensive gripper status information.
-        :return: Dictionary with gripper state information
-        """
-        width = self.get_gripper_width()
-        state = self.gripper_controller.get_gripper_state()
-        
+        """Get gripper status information"""
         info = {
-            'width_mm': width * 1000 if width is not None else None,
-            'width_m': width,
-            'is_open': self.is_gripper_open(),
-            'is_closed': self.is_gripper_closed(),
-            'is_grasping': self.is_grasping_object()
+            'is_homed': self.gripper_controller.is_homed(),
+            'max_width_mm': None,
+            'current_width_mm': None
         }
         
-        if state:
-            info.update({
-                'force_N': state.effort,
-                'is_stalled': state.stalled,
-                'reached_goal': state.reached_goal
-            })
+        if info['is_homed']:
+            max_width = self.gripper_controller.get_max_width()
+            if max_width:
+                info['max_width_mm'] = max_width * 1000.0
         
         return info
+
 
 
 def main(args=None):
@@ -416,7 +402,7 @@ def main(args=None):
     rclpy.init(args=args)
     
     try:
-        print("🤖 Initializing UR5 Robot Arm Controller...")
+        print("🤖 Initializing FR3 Robot Arm Controller...")
         robot = RobotArmController()
         
         # Check connections
