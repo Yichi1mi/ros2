@@ -9,17 +9,40 @@ import math
 from .joint_controller import JointController
 from .position_controller import PositionController
 from .gripper_controller import GripperController
+from .robot_config import get_config, validate_mode
 
 class RobotArmController:
     """
-    Simplified robot arm controller with direct execution (no queue).
+    Dual-mode robot arm controller supporting MoveIt and Gazebo simulation.
     Provides clean, minimal API for joint and position control.
     """
 
-    def __init__(self):
-        self.joint_controller = JointController()
-        self.position_controller = PositionController()
-        self.gripper_controller = GripperController()
+    def __init__(self, mode="moveit"):
+        """
+        Initialize robot arm controller
+        
+        Args:
+            mode: "moveit" or "gazebo" - simulation mode to use
+        """
+        if not validate_mode(mode):
+            raise ValueError(f"Invalid mode: {mode}. Use 'moveit' or 'gazebo'")
+            
+        self.mode = mode
+        self.config = get_config(mode)
+        
+        print(f"🤖 初始化机器人控制器: {self.config['name']}")
+        print(f"   {self.config['description']}")
+        
+        # Initialize controllers based on mode
+        if mode == "moveit":
+            self.joint_controller = JointController()
+            self.position_controller = PositionController()
+            self.gripper_controller = GripperController() if self.config['gripper_available'] else None
+        elif mode == "gazebo":
+            # TODO: Implement Gazebo controllers
+            self.joint_controller = JointController()  # Will be replaced with GazeboJointController
+            self.position_controller = PositionController()  # Will be replaced with GazeboPositionController
+            self.gripper_controller = GripperController() if self.config['gripper_available'] else None
         self.HOME_POSITION = [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785]  # FR3 ready position
         self._pause_between_movements = 0.5  # Default pause in seconds
         
@@ -42,7 +65,13 @@ class RobotArmController:
     
     def is_gripper_connected(self):
         """Check if gripper is connected."""
+        if self.gripper_controller is None:
+            return False
         return self.gripper_controller.is_connected()
+    
+    def is_gripper_available(self):
+        """Check if gripper functionality is available in current mode."""
+        return self.config['gripper_available'] and self.gripper_controller is not None
 
     def _is_position_safe(self, x, y, z):
         """
@@ -302,6 +331,10 @@ class RobotArmController:
     
     def home_gripper(self):
         """Home the gripper and determine maximum width"""
+        if not self.is_gripper_available():
+            print(f"❌ Gripper not available in {self.mode} mode")
+            return False
+            
         print("Homing gripper...")
         success = self.gripper_controller.home_gripper()
         if success:
@@ -313,6 +346,10 @@ class RobotArmController:
     
     def open_gripper(self):
         """Open gripper to maximum width"""
+        if not self.is_gripper_available():
+            print(f"❌ Gripper not available in {self.mode} mode")
+            return False
+            
         print("Opening gripper...")
         success = self.gripper_controller.open_gripper()
         if success:
@@ -327,6 +364,10 @@ class RobotArmController:
     
     def close_gripper(self):
         """Close gripper completely"""
+        if not self.is_gripper_available():
+            print(f"❌ Gripper not available in {self.mode} mode")
+            return False
+            
         print("Closing gripper...")
         success = self.gripper_controller.close_gripper()
         if success:
@@ -346,6 +387,10 @@ class RobotArmController:
         Args:
             width_mm: Target width in millimeters (0-80mm typically)
         """
+        if not self.is_gripper_available():
+            print(f"❌ Gripper not available in {self.mode} mode")
+            return False
+            
         width_m = width_mm / 1000.0  # Convert to meters
         print(f"Setting gripper width to {width_mm:.1f}mm...")
         success = self.gripper_controller.move_to_width(width_m)
@@ -366,6 +411,10 @@ class RobotArmController:
         Args:
             force_n: Grasping force in Newtons
         """
+        if not self.is_gripper_available():
+            print(f"❌ Gripper not available in {self.mode} mode")
+            return False
+            
         print(f"Attempting to grasp object with {force_n:.1f}N force...")
         success = self.gripper_controller.grasp(width=0.01, force=force_n)
         if success:
@@ -381,15 +430,19 @@ class RobotArmController:
     def get_gripper_info(self):
         """Get gripper status information"""
         info = {
-            'is_homed': self.gripper_controller.is_homed(),
+            'available': self.is_gripper_available(),
+            'mode': self.mode,
+            'is_homed': False,
             'max_width_mm': None,
             'current_width_mm': None
         }
         
-        if info['is_homed']:
-            max_width = self.gripper_controller.get_max_width()
-            if max_width:
-                info['max_width_mm'] = max_width * 1000.0
+        if self.is_gripper_available():
+            info['is_homed'] = self.gripper_controller.is_homed()
+            if info['is_homed']:
+                max_width = self.gripper_controller.get_max_width()
+                if max_width:
+                    info['max_width_mm'] = max_width * 1000.0
         
         return info
 

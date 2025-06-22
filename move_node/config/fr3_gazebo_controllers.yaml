@@ -1,0 +1,62 @@
+/**:
+  controller_manager:
+    ros__parameters:
+      update_rate: 1000  # Hz
+
+      # Joint trajectory controller for arm movement
+      joint_trajectory_controller:
+        type: joint_trajectory_controller/JointTrajectoryController
+
+      # Joint state broadcaster
+      joint_state_broadcaster:
+        type: joint_state_broadcaster/JointStateBroadcaster
+
+      # Position controllers for gripper fingers (simulation)
+      gripper_controller:
+        type: position_controllers/JointGroupPositionController
+
+/**:
+  joint_trajectory_controller:
+    ros__parameters:
+      command_interfaces:
+        - position
+      state_interfaces:
+        - position
+        - velocity
+      joints:
+        - fr3_joint1
+        - fr3_joint2
+        - fr3_joint3
+        - fr3_joint4
+        - fr3_joint5
+        - fr3_joint6
+        - fr3_joint7
+      
+      # PID gains optimized for Gazebo simulation
+      gains:
+        fr3_joint1: { p: 400., d: 20., i: 0., i_clamp: 1. }
+        fr3_joint2: { p: 400., d: 20., i: 0., i_clamp: 1. }
+        fr3_joint3: { p: 400., d: 20., i: 0., i_clamp: 1. }
+        fr3_joint4: { p: 400., d: 20., i: 0., i_clamp: 1. }
+        fr3_joint5: { p: 200., d: 10., i: 0., i_clamp: 1. }
+        fr3_joint6: { p: 100., d: 8., i: 0., i_clamp: 1. }
+        fr3_joint7: { p: 40., d: 4., i: 0., i_clamp: 1. }
+
+      # Trajectory execution settings
+      state_publish_rate: 50.0
+      action_monitor_rate: 20.0
+      allow_partial_joints_goal: false
+      allow_integration_in_goal_trajectories: true
+      allow_nonzero_velocity_at_trajectory_end: false
+
+/**:
+  gripper_controller:
+    ros__parameters:
+      joints:
+        - fr3_finger_joint1
+        - fr3_finger_joint2
+      command_interfaces:
+        - position
+      state_interfaces:
+        - position
+        - velocity

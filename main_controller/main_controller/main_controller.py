@@ -7,32 +7,78 @@ import time
 import rclpy
 
 from move_node.robot_arm_controller import RobotArmController
+from move_node.robot_config import list_available_modes
 from scene_manager.scene_manager import SceneManager
+
+def select_simulation_mode():
+    """
+    Let user select simulation mode
+    
+    Returns:
+        str: Selected mode ("moveit" or "gazebo")
+    """
+    print("=" * 60)
+    print("🚀 Franka机器人控制系统")
+    print("=" * 60)
+    print()
+    print("请选择仿真模式:")
+    
+    modes = list_available_modes()
+    mode_keys = list(modes.keys())
+    
+    for i, (mode_key, description) in enumerate(modes.items(), 1):
+        print(f"{i}. {description}")
+    
+    print()
+    while True:
+        try:
+            choice = input(f"请选择模式 (1-{len(modes)}): ").strip()
+            choice_num = int(choice)
+            if 1 <= choice_num <= len(modes):
+                selected_mode = mode_keys[choice_num - 1]
+                print(f"✅ 已选择: {modes[selected_mode]}")
+                print()
+                return selected_mode
+            else:
+                print(f"❌ 请输入 1 到 {len(modes)} 之间的数字")
+        except ValueError:
+            print("❌ 请输入有效的数字")
+        except KeyboardInterrupt:
+            print("\n👋 用户取消，退出程序")
+            exit(0)
 
 def main():
     rclpy.init()
     try:
+        # User selects simulation mode
+        mode = select_simulation_mode()
+        
         print("=" * 50)
         print("Starting main controller")
         print("=" * 50)
         
-        # Create robot and scene manager
-        robot = RobotArmController()
+        # Create robot and scene manager with selected mode
+        robot = RobotArmController(mode=mode)
         scene_manager = SceneManager()
         
         # Check component connections
         arm_connected = robot.is_connected()
-        gripper_connected = robot.is_gripper_connected()
+        gripper_available = robot.is_gripper_available()
+        gripper_connected = robot.is_gripper_connected() if gripper_available else False
         
         print(f"🤖 Robot arm connected: {arm_connected}")
-        print(f"🤏 Gripper connected: {gripper_connected}")
+        print(f"🤏 Gripper available: {gripper_available}")
+        if gripper_available:
+            print(f"🤏 Gripper connected: {gripper_connected}")
         
         if not arm_connected:
             print("❌ Failed to connect to robot arm")
             return
         
-        if not gripper_connected:
-            print("⚠️  Gripper not connected. Continuing with arm-only tests.")
+        if gripper_available and not gripper_connected:
+            print("⚠️  Gripper available but not connected.")
+        elif not gripper_available:
+            print(f"ℹ️  Gripper not available in {mode} mode.")
         
         print("✅ Robot system ready!")
         
@@ -65,16 +111,19 @@ def main():
             print(f"   Safe Z range: {limits['z_min']:.1f} to {limits['z_max']:.1f}m")
             print(f"   Max reach: {workspace_info['max_reach']:.2f}m from origin")
             
-            # Display gripper information
-            if gripper_connected:
-                gripper_info = robot.get_gripper_info()
-                print(f"   Gripper available: ✅")
-                if gripper_info['is_homed']:
-                    print(f"   Gripper max width: {gripper_info['max_width_mm']:.1f}mm")
+            # Display gripper information  
+            gripper_info = robot.get_gripper_info()
+            if gripper_info['available']:
+                if gripper_connected:
+                    print(f"   Gripper status: ✅ Connected")
+                    if gripper_info['is_homed']:
+                        print(f"   Gripper max width: {gripper_info['max_width_mm']:.1f}mm")
+                    else:
+                        print(f"   Gripper status: Not homed")
                 else:
-                    print(f"   Gripper status: Not homed")
+                    print(f"   Gripper status: ⚠️ Available but not connected")
             else:
-                print(f"   Gripper available: ❌")
+                print(f"   Gripper status: ❌ Not available in {mode} mode")
             print()
 
             # initial home position
@@ -131,7 +180,7 @@ def main():
             # ========================================
             # GRIPPER CONTROL TESTS - 抓手控制测试
             # ========================================
-            if gripper_connected:
+            if gripper_available and gripper_connected:
                 print("=== GRIPPER CONTROL TESTS ===")
                 print("开始抓手控制测试...")
                 
@@ -189,7 +238,10 @@ def main():
                 print()
             else:
                 print("=== GRIPPER TESTS SKIPPED ===")
-                print("抓手不可用，跳过抓手测试")
+                if not gripper_available:
+                    print(f"抓手在{mode}模式下不可用，跳过抓手测试")
+                else:
+                    print("抓手可用但未连接，跳过抓手测试")
                 print()
             
             

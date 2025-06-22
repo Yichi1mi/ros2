@@ -43,8 +43,36 @@ ros2 launch my_franka_project fr3_moveit_only.launch.py
 source install/setup.bash
 ros2 launch my_franka_project fr3_moveit_gazebo.launch.py
 
+source install/setup.bash
+ros2 launch franka_gazebo_bringup visualize_franka_robot.launch.py load_gripper:=true franka_hand:='franka_hand'
 
 第三步：运行你的代码
+
+
+
+
+
+
+colcon build --packages-select my_franka_project --symlink-install
+source install/setup.bash
+
+# 确保清理所有Gazebo进程
+pkill -f gazebo
+sleep 2
+
+# 重新启动
+ros2 launch my_franka_project gazebo_simulation.launch.py
+
+
+
+
+
+
+
+
+
+
+
 
 # 新开第二个终端连接到容器
 docker exec -it panda_simulation_env bash
@@ -55,5 +83,6 @@ colcon build --symlink-install
 
 
 # 运行主控制器
+source /opt/ros/humble/setup.bash
 source install/setup.bash
 ros2 run main_controller main_controller
