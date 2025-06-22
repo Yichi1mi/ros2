@@ -1,0 +1,28 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    fr3_arm_controller:
+      type: position_controllers/JointTrajectoryController
+      joints:
+        - fr3_joint1
+        - fr3_joint2
+        - fr3_joint3
+        - fr3_joint4
+        - fr3_joint5
+        - fr3_joint6
+        - fr3_joint7
+      command_interfaces:
+        - position
+      state_interfaces:
+        - position
+        - velocity
+      gains:
+        fr3_joint1: {p: 100.0, d: 1.0, i: 0.01}
+        fr3_joint2: {p: 100.0, d: 1.0, i: 0.01}
+        fr3_joint3: {p: 100.0, d: 1.0, i: 0.01}
+        fr3_joint4: {p: 100.0, d: 1.0, i: 0.01}
+        fr3_joint5: {p: 100.0, d: 1.0, i: 0.01}
+        fr3_joint6: {p: 100.0, d: 1.0, i: 0.01}
+        fr3_joint7: {p: 100.0, d: 1.0, i: 0.01}

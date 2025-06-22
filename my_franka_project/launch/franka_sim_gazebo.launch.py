@@ -1,17 +1,59 @@
 #!/usr/bin/env python3
 
-from launch import LaunchDescription
+import os
+import xacro
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription, LaunchContext
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    OpaqueFunction,
+    ExecuteProcess,
     RegisterEventHandler,
 )
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
+
+
+def get_robot_description(context: LaunchContext, arm_id, hand, ee_id):
+    """参考Franka官方方式生成robot_description"""
+    arm_id_str = context.perform_substitution(arm_id)
+    hand_str = context.perform_substitution(hand)
+    ee_id_str = context.perform_substitution(ee_id)
+
+    franka_xacro_file = os.path.join(
+        get_package_share_directory('franka_description'),
+        'robots',
+        arm_id_str,
+        arm_id_str + '.urdf.xacro'
+    )
+
+    robot_description_config = xacro.process_file(
+        franka_xacro_file,
+        mappings={
+            'arm_id': arm_id_str,
+            'hand': hand_str,
+            'ros2_control': 'true',
+            'gazebo': 'false',  # 不使用Ignition Gazebo
+            'ee_id': ee_id_str,
+            'use_fake_hardware': 'true'  # 关键：使用fake hardware
+        }
+    )
+
+    robot_description = {'robot_description': robot_description_config.toxml()}
+
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        output='both',
+        parameters=[robot_description, {'use_sim_time': True}]
+    )
+
+    return [robot_state_publisher]
 
 
 def generate_launch_description():
@@ -39,27 +81,6 @@ def generate_launch_description():
         )
     )
     declared_arguments.append(
-        DeclareLaunchArgument(
-            "controllers_file",
-            default_value="gazebo_ros2_controllers.yaml",
-            description="YAML file with the controllers configuration.",
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "description_package",
-            default_value="franka_description",
-            description="Description package with robot URDF/XACRO files.",
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "description_file",
-            default_value="fr3.urdf.xacro",
-            description="URDF/XACRO description file with the robot.",
-        )
-    )
-    declared_arguments.append(
         DeclareLaunchArgument("launch_rviz", default_value="false", description="Launch RViz?")
     )
     declared_arguments.append(
@@ -72,87 +93,40 @@ def generate_launch_description():
     arm_id = LaunchConfiguration("arm_id")
     hand = LaunchConfiguration("hand")
     ee_id = LaunchConfiguration("ee_id")
-    controllers_file = LaunchConfiguration("controllers_file")
-    description_package = LaunchConfiguration("description_package")
-    description_file = LaunchConfiguration("description_file")
     launch_rviz = LaunchConfiguration("launch_rviz")
     gazebo_gui = LaunchConfiguration("gazebo_gui")
 
-    # Controller configuration file path
-    controllers_file_path = PathJoinSubstitution(
-        [FindPackageShare("my_franka_project"), "config", controllers_file]
+    # Robot description using Franka official method
+    robot_state_publisher = OpaqueFunction(
+        function=get_robot_description,
+        args=[arm_id, hand, ee_id])
+
+    # Controller configuration 
+    controllers_file_path = os.path.join(
+        get_package_share_directory('my_franka_project'),
+        'config',
+        'gazebo_ros2_controllers.yaml'
     )
 
-    # Robot description - 按照UR的方式，使用官方franka URDF + gazebo参数
-    robot_description_content = Command(
-        [
-            PathJoinSubstitution([FindExecutable(name="xacro")]),
-            " ",
-            PathJoinSubstitution(
-                [FindPackageShare(description_package), "robots", "fr3", description_file]
-            ),
-            " ",
-            "arm_id:=",
-            arm_id,
-            " ",
-            "hand:=",
-            hand,
-            " ",
-            "ee_id:=",
-            ee_id,
-            " ",
-            "description_pkg:=",
-            description_package,
-            " ",
-            "gazebo:=true",  # 关键：启用gazebo模式
-            " ",
-            "ros2_control:=true",  # 关键：启用ros2_control
-            " ",
-            "use_fake_hardware:=false",  # 关键：不使用fake hardware
-        ]
-    )
-    robot_description = {"robot_description": robot_description_content}
-
-    # Robot state publisher
-    robot_state_publisher_node = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
+    # ROS2 Control node with controller config
+    ros2_control_node = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        parameters=[controllers_file_path],
         output="both",
-        parameters=[{"use_sim_time": True}, robot_description],
     )
 
-    # Joint state broadcaster spawner - 按照UR的方式使用spawner
-    joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
-    )
-
-    # Arm controller spawner - use fr3_arm_controller to match MoveIt expectations
-    arm_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["fr3_arm_controller", "-c", "/controller_manager"],
-    )
-
-    # Gripper controller spawner  
-    gripper_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["fr3_gripper_controller", "-c", "/controller_manager"],
-    )
-
-    # Gazebo launch
+    # Gazebo launch (经典Gazebo)
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            [FindPackageShare("gazebo_ros"), "/launch", "/gazebo.launch.py"]
+            os.path.join(get_package_share_directory("gazebo_ros"), "launch", "gazebo.launch.py")
         ),
         launch_arguments={
             "gui": gazebo_gui,
         }.items(),
     )
 
-    # Spawn robot
+    # Spawn robot in Gazebo
     gazebo_spawn_robot = Node(
         package="gazebo_ros",
         executable="spawn_entity.py",
@@ -161,7 +135,18 @@ def generate_launch_description():
         output="screen",
     )
 
-    # RViz node (optional)
+    # Controllers (按照UR方式用ExecuteProcess)
+    load_joint_state_broadcaster = ExecuteProcess(
+        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active', 'joint_state_broadcaster'],
+        output='screen'
+    )
+
+    load_fr3_arm_controller = ExecuteProcess(
+        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active', 'fr3_arm_controller'],
+        output='screen'
+    )
+
+    # RViz (optional)
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
@@ -170,29 +155,29 @@ def generate_launch_description():
         condition=IfCondition(launch_rviz),
     )
 
-    # Event handlers for proper sequencing
-    delay_arm_controller_after_joint_state_broadcaster = RegisterEventHandler(
+    # Event sequencing
+    delay_controllers_after_spawn = RegisterEventHandler(
         event_handler=OnProcessExit(
-            target_action=joint_state_broadcaster_spawner,
-            on_exit=[arm_controller_spawner, gripper_controller_spawner],
+            target_action=gazebo_spawn_robot,
+            on_exit=[load_joint_state_broadcaster],
         )
     )
 
-    delay_rviz_after_joint_state_broadcaster = RegisterEventHandler(
+    delay_arm_controller_after_joint_state = RegisterEventHandler(
         event_handler=OnProcessExit(
-            target_action=joint_state_broadcaster_spawner,
-            on_exit=[rviz_node],
-        ),
-        condition=IfCondition(launch_rviz),
+            target_action=load_joint_state_broadcaster,
+            on_exit=[load_fr3_arm_controller],
+        )
     )
 
     nodes_to_start = [
-        robot_state_publisher_node,
-        joint_state_broadcaster_spawner,
-        delay_arm_controller_after_joint_state_broadcaster,
-        delay_rviz_after_joint_state_broadcaster,
+        robot_state_publisher,
+        ros2_control_node,
         gazebo,
         gazebo_spawn_robot,
+        delay_controllers_after_spawn,
+        delay_arm_controller_after_joint_state,
+        rviz_node,
     ]
 
     return LaunchDescription(declared_arguments + nodes_to_start)

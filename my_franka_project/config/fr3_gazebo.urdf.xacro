@@ -1,0 +1,29 @@
+<?xml version="1.0" ?>
+<robot name="fr3" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Import the robot URDF -->
+  <xacro:include filename="$(find franka_description)/robots/fr3/fr3.urdf.xacro"/>
+  
+  <!-- Include our custom Gazebo ros2_control -->
+  <xacro:include filename="$(find my_franka_project)/config/franka_arm_gazebo.ros2_control.xacro"/>
+  
+  <!-- Robot parameters -->
+  <xacro:property name="arm_id" value="fr3" />
+  <xacro:property name="hand" value="true" />
+  <xacro:property name="ee_id" value="franka_hand" />
+  <xacro:property name="arm_prefix" value="" />
+  <xacro:property name="description_pkg" value="franka_description" />
+  <xacro:property name="gazebo" value="false" />
+  <xacro:property name="ros2_control" value="false" />
+  <xacro:property name="use_fake_hardware" value="true" />
+  <xacro:property name="fake_sensor_commands" value="false" />
+  <xacro:property name="multi_arm" value="false" />
+  
+  <!-- Use our custom Gazebo ros2_control instead of the original -->
+  <xacro:franka_arm_gazebo_ros2_control 
+    arm_id="${arm_id}"
+    robot_ip="dont-care"
+    hand="${hand}"
+    arm_prefix="${arm_prefix}"
+    multi_arm="${multi_arm}"/>
+    
+</robot>
