@@ -45,7 +45,7 @@ ros2 launch ur_description_custom test_ur5e_robotiq.launch.py
 ### 4. 运行控制器（可选，在新终端）
 ```bash
 # 在host bash中打开新终端
-docker exec -it ur_simulation_env bash
+docker exec -it robot_simulation_env bash
 
 # 在新Docker终端内
 cd /home/xichen/robot_ws
