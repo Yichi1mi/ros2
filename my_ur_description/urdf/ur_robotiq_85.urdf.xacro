@@ -1,10 +1,11 @@
 <?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/xacro" name="ur5_with_robotiq">
+<robot xmlns:xacro="http://www.ros.org/xacro" name="ur5e_with_robotiq">
 
   <xacro:arg name="use_fake_hardware" default="true" />
   <xacro:arg name="sim_gazebo" default="false" />
   
   <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+  <xacro:include filename="$(find robotiq_description)/urdf/ur_to_robotiq_adapter.urdf.xacro"/>
   <xacro:include filename="$(find robotiq_description)/urdf/robotiq_2f_85_macro.urdf.xacro"/>
 
   <link name="world" />
@@ -18,27 +19,26 @@
     physical_parameters_file="$(find ur_description)/config/ur5e/physical_parameters.yaml"
     visual_parameters_file="$(find ur_description)/config/ur5e/visual_parameters.yaml"
     use_fake_hardware="$(arg use_fake_hardware)" 
-    sim_gazebo="$(arg sim_gazebo)">
+    sim_gazebo="$(arg sim_gazebo)"
+    generate_ros2_control_tag="true">
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:ur_robot>
 
+  <!-- Add adapter between tool0 and gripper -->
+  <xacro:ur_to_robotiq
+    prefix=""
+    parent="tool0"
+    child="robotiq_adapter_link"
+    rotation="0.0"/>
+
+  <!-- Add Robotiq gripper connected to adapter -->
   <xacro:robotiq_gripper
       name="robotiq_2f_85"
       prefix=""
-      parent="tool0"
-      use_fake_hardware="$(arg use_fake_hardware)">
+      parent="robotiq_adapter_link"
+      use_fake_hardware="$(arg use_fake_hardware)"
+      include_ros2_control="false">
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:robotiq_gripper>
-  
-
-  <xacro:if value="$(arg use_fake_hardware)">
-    <xacro:include filename="$(find ur_robotiq_moveit_config)/config/ur5_with_robotiq.ros2_control.xacro" />
-    <xacro:ur5_with_robotiq_ros2_control name="FakeSystem" initial_positions_file="$(find ur_robotiq_moveit_config)/config/initial_positions.yaml"/>
-  </xacro:if>
-
-  <xacro:if value="$(arg sim_gazebo)">
-    <xacro:include filename="$(find ur_robotiq_moveit_config)/config/ur5e_robotiq_gazebo.ros2_control.xacro" />
-    <xacro:ur5_with_robotiq_gazebo_ros2_control name="GazeboSystem" initial_positions_file="$(find ur_robotiq_moveit_config)/config/initial_positions.yaml"/>
-  </xacro:if>
 
 </robot>
