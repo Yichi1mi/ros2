@@ -14,3 +14,6 @@
 [submodule "ur_msgs"]
 	path = ur_msgs
 	url = https://github.com/UniversalRobots/Universal_Robots_ROS2_Description.git
+[submodule "ros2_robotiq_gripper"]
+	path = ros2_robotiq_gripper
+	url = git@github.com:PickNikRobotics/ros2_robotiq_gripper.git
