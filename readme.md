@@ -13,7 +13,7 @@ robot_ws/src/
 │   └── vision_node/             # Vision control node
 ├── ur_robotiq_moveit_config/     # MoveIt2 configuration
 ├── ur_description_custom/        # Custom URDF description
-└── readme.md                    # This document
+└── readme.md                
 ```
 
 ## Quick Start
