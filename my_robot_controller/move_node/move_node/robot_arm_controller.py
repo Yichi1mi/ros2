@@ -8,6 +8,7 @@ All movements are blocking and auto-wait for completion.
 import math
 from .joint_controller import JointController
 from .position_controller import PositionController
+from robot_common import UR5ArmGeometry
 
 class RobotArmController:
     """
@@ -18,6 +19,9 @@ class RobotArmController:
     def __init__(self):
         self.joint_controller = JointController()
         self.position_controller = PositionController()
+        
+        # 创建几何处理器
+        self.arm_geometry = UR5ArmGeometry()
         
         # 定义机械臂姿态
         self.INITIAL_POSITION = [0.0, -1.57, 0.0, -1.57, 0.0, 0.0]  # 竖直向上，初始化用
@@ -132,32 +136,8 @@ class RobotArmController:
                 time.sleep(self._pause_between_movements)
             return success
         
-        # Check joint limits for UR5 (in radians) - 包含防撞地面限制
-        # 特别注意：J2关节限制在-135°到-45°，防止撞地面
-        joint_limits = [
-            (-2*math.pi, 2*math.pi),     # J1: ±360°
-            (-2.36, -0.79),              # J2: -135° 到 -45° (防撞地面)
-            (-math.pi, math.pi),         # J3: ±180°
-            (-2*math.pi, 2*math.pi),     # J4: ±360°
-            (-2*math.pi, 2*math.pi),     # J5: ±360°
-            (-2*math.pi, 2*math.pi),     # J6: ±360°
-        ]
-        
-        # Normalize angles to shortest path and check limits
-        normalized_angles = []
-        for i, angle in enumerate(angles):
-            # Normalize to -π to π range first
-            normalized = ((angle + math.pi) % (2*math.pi)) - math.pi
-            
-            # Check if within joint limits
-            min_limit, max_limit = joint_limits[i]
-            if normalized < min_limit or normalized > max_limit:
-                print(f"⚠️  Warning: Joint {i+1} angle {math.degrees(normalized):.1f}° exceeds limits ({math.degrees(min_limit):.1f}° to {math.degrees(max_limit):.1f}°)")
-                # Clamp to limits
-                normalized = max(min_limit, min(max_limit, normalized))
-                print(f"   Clamped to: {math.degrees(normalized):.1f}°")
-            
-            normalized_angles.append(normalized)
+        # 使用几何处理器进行角度标准化和限制检查
+        normalized_angles = self.arm_geometry.normalize_joint_angles(angles)
         
         print(f"Moving to joint positions: {[f'{a:.3f}' for a in normalized_angles]}")
         print(f"Joint angles (degrees): {[f'{math.degrees(a):.1f}°' for a in normalized_angles]}")

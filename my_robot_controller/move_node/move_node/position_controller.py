@@ -22,7 +22,7 @@ from rclpy.action import ActionClient
 import time
 import math
 
-from robot_common import RobotConnectionBase, RobotStateManager
+from robot_common import RobotConnectionBase, RobotStateManager, UR5ArmGeometry
 
 class PositionController(RobotConnectionBase):
     """
@@ -47,6 +47,9 @@ class PositionController(RobotConnectionBase):
             action_name='/joint_trajectory_controller/follow_joint_trajectory',
             action_type=FollowJointTrajectory
         )
+        
+        # 创建几何处理器
+        self.arm_geometry = UR5ArmGeometry(logger=self.get_logger())
     
     def _on_connection_established(self):
         """Initialize MoveIt2 action clients and services after connection"""
@@ -359,24 +362,35 @@ class PositionController(RobotConnectionBase):
                                 self.get_logger().error(f'Joint {joint_name} not found in IK solution')
                                 continue
                         
-                        # 验证并修正J2角度（几何变换）
+                        # 验证并修正J2角度（基于机械臂几何形状判断）
                         if len(solution_joints) == 6:
                             j2_angle = solution_joints[1]  # J2是第2个关节
                             j3_angle = solution_joints[2]  # J3是第3个关节
                             
-                            # J2安全范围：-135° 到 -45° (即 -2.36 到 -0.79 弧度)
-                            if -2.36 <= j2_angle <= -0.79:
-                                # J2在安全范围内，直接返回
-                                self.get_logger().info(f'✅ 找到安全IK解 (种子值{i+1}) - J2: {math.degrees(j2_angle):.1f}°')
+                            # 检查机械臂是否向下凹（J3不向上突出）
+                            # 当J2+J3的组合导致肘部向下时，需要重新计算
+                            is_elbow_down = self.arm_geometry.is_arm_concave_down(j2_angle, j3_angle)
+                            
+                            if not is_elbow_down:
+                                # 机械臂形状正常（肘部向上突出），直接返回
+                                self.get_logger().info(f'✅ 找到合适IK解 (种子值{i+1}) - J2: {math.degrees(j2_angle):.1f}°, J3: {math.degrees(j3_angle):.1f}° (肘部向上)')
                                 return solution_joints
                             else:
-                                # 尝试几何变换修正J2角度
-                                corrected_joints = self._correct_j2_angle(solution_joints.copy())
+                                # 机械臂向下凹，尝试几何变换修正
+                                self.get_logger().info(f'⚠️ 检测到机械臂向下凹 - J2: {math.degrees(j2_angle):.1f}°, J3: {math.degrees(j3_angle):.1f}°, 尝试几何变换')
+                                corrected_joints = self.arm_geometry.correct_joint_configuration(solution_joints.copy())
                                 if corrected_joints is not None:
-                                    self.get_logger().info(f'✅ 通过几何变换修正J2角度 (种子值{i+1}) - 原始: {math.degrees(j2_angle):.1f}° → 修正: {math.degrees(corrected_joints[1]):.1f}°')
-                                    return corrected_joints
+                                    # 再次检查修正后的配置
+                                    corrected_j2 = corrected_joints[1]
+                                    corrected_j3 = corrected_joints[2]
+                                    if not self.arm_geometry.is_arm_concave_down(corrected_j2, corrected_j3):
+                                        self.get_logger().info(f'✅ 通过几何变换修正机械臂形状 (种子值{i+1}) - 原始: J2={math.degrees(j2_angle):.1f}°,J3={math.degrees(j3_angle):.1f}° → 修正: J2={math.degrees(corrected_j2):.1f}°,J3={math.degrees(corrected_j3):.1f}°')
+                                        return corrected_joints
+                                    else:
+                                        self.get_logger().warning(f'几何变换后机械臂仍向下凹，尝试下一个种子值')
+                                        continue
                                 else:
-                                    self.get_logger().warning(f'种子值{i+1}的IK解J2角度 {math.degrees(j2_angle):.1f}° 无法修正到安全范围，尝试下一个')
+                                    self.get_logger().warning(f'种子值{i+1}几何变换失败，尝试下一个')
                                     continue
                 
             except Exception as e:
@@ -386,83 +400,6 @@ class PositionController(RobotConnectionBase):
         # 所有种子值都失败了
         self.get_logger().error('所有IK种子值尝试都失败，无法找到安全解')
         return None
-    
-    def _correct_j2_angle(self, joint_solution):
-        """
-        通过几何变换修正J2角度到安全范围
-        利用肩肘关节的平行四边形特性进行肘上/肘下配置转换
-        
-        Args:
-            joint_solution: 原始关节角度解 [J1, J2, J3, J4, J5, J6]
-            
-        Returns:
-            list: 修正后的关节角度，或None如果无法修正
-        """
-        try:
-            j1, j2, j3, j4, j5, j6 = joint_solution
-            
-            # 安全范围边界
-            j2_upper_limit = -0.79  # -45°
-            j2_lower_limit = -2.36  # -135°
-            
-            # 默认值（如果不需要变换）
-            new_j1, new_j2, new_j3, new_j4, new_j5, new_j6 = j1, j2, j3, j4, j5, j6
-            
-            # 基于余弦定理的正确几何变换
-            L2 = 0.425     # 上臂长度 (Link2)  
-            L3 = 0.39225   # 前臂长度 (Link3)
-            
-            # 计算从J2到腕部的直线距离C
-            # 这需要通过当前的J2和J3角度计算
-            C_squared = L2*L2 + L3*L3 + 2*L2*L3*math.cos(j3)
-            C = math.sqrt(C_squared)
-            
-            # 用余弦定理计算α角 (肘关节的内角)
-            # α = acos((L2² + L3² - C²) / (2 * L2 * L3))
-            cos_alpha = (L2*L2 + L3*L3 - C*C) / (2 * L2 * L3)
-            # 确保在有效范围内
-            cos_alpha = max(-1.0, min(1.0, cos_alpha))
-            alpha = math.acos(cos_alpha)
-            
-            self.get_logger().info(f'几何计算: C={C:.3f}m, α={math.degrees(alpha):.1f}°')
-            
-            # 基于α角的配置转换
-            new_j1 = j1      # 基座不变
-            new_j5 = j5      # 腕关节2保持不变
-            new_j6 = j6      # 腕关节3保持不变
-            
-            # 肘关节的两种配置 - 简单翻转
-            new_j3 = -j3  # J3就是简单翻转
-            
-            # J2根据α角调整
-            if j3 < 0:  # 当前是肘下配置 → 肘上
-                new_j2 = j2 - 2*alpha       # J2相应调整
-                self.get_logger().info(f'肘下→肘上配置转换')
-            else:  # 当前是肘上配置 → 肘下
-                new_j2 = j2 + 2*alpha       # J2相应调整
-                self.get_logger().info(f'肘上→肘下配置转换')
-            
-            # J4补偿以保持腕部方向
-            # new_j3 = -j3, 所以 new_j3 - j3 = -j3 - j3 = -2*j3
-            new_j4 = j4 - (-2*j3)  # 补偿J3的变化量
-            new_j4 = j4 + 2*j3     # 简化
-            
-            self.get_logger().info(f'  J2: {math.degrees(j2):.1f}°→{math.degrees(new_j2):.1f}°')
-            self.get_logger().info(f'  J3: {math.degrees(j3):.1f}°→{math.degrees(new_j3):.1f}°')
-            self.get_logger().info(f'  J4: {math.degrees(j4):.1f}°→{math.degrees(new_j4):.1f}°')
-            
-            # 检查修正后的J2是否在安全范围内
-            if j2_lower_limit <= new_j2 <= j2_upper_limit:
-                corrected_solution = [new_j1, new_j2, new_j3, new_j4, new_j5, new_j6]
-                self.get_logger().info(f'✅ UR完整配置转换成功！肘上↔肘下转换完成')
-                return corrected_solution
-            else:
-                self.get_logger().warning(f'几何变换后J2={math.degrees(new_j2):.1f}°仍不在安全范围内')
-                return None
-                
-        except Exception as e:
-            self.get_logger().error(f'几何变换出错: {e}')
-            return None
     
     def _execute_joint_solution(self, joint_positions, wait_for_completion=True):
         """
