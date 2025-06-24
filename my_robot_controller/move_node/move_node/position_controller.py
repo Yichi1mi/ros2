@@ -48,7 +48,7 @@ class PositionController(RobotConnectionBase):
             action_type=FollowJointTrajectory
         )
         
-        # 创建几何处理器
+        # Create geometry handler
         self.arm_geometry = UR5ArmGeometry(logger=self.get_logger())
     
     def _on_connection_established(self):
@@ -302,27 +302,27 @@ class PositionController(RobotConnectionBase):
         Returns:
             list: Joint positions or None if no solution
         """
-        # 定义多个安全的种子值配置，引导求解器找到安全解
+        # Define multiple safe seed configurations to guide solver to safe solutions
         safe_seed_configurations = [
-            # [J1, J2, J3, J4, J5, J6] - 重点是J2在安全范围内
-            [0.0, -1.57, 0.0, -1.57, 0.0, 0.0],      # 标准配置
-            [-1.57, -1.57, -1.57, -1.57, 1.57, 0.0], # Home配置  
-            [1.57, -1.57, -1.0, -1.57, 0.0, 0.0],    # 右侧配置
-            [0.0, -2.0, -0.5, -1.57, 0.0, 0.0],      # 更低J2角度
-            [0.0, -1.0, -1.5, -1.57, 0.0, 0.0],      # 另一种配置
+            # [J1, J2, J3, J4, J5, J6] - Focus on J2 within safe range
+            [0.0, -1.57, 0.0, -1.57, 0.0, 0.0],      # Standard config
+            [-1.57, -1.57, -1.57, -1.57, 1.57, 0.0], # Home config  
+            [1.57, -1.57, -1.0, -1.57, 0.0, 0.0],    # Right side config
+            [0.0, -2.0, -0.5, -1.57, 0.0, 0.0],      # Lower J2 angle
+            [0.0, -1.0, -1.5, -1.57, 0.0, 0.0],      # Alternative config
         ]
         
-        # 获取当前关节状态作为额外种子值
+        # Get current joint state as additional seed value
         current_joints = self._state_manager.get_current_joint_positions()
         if current_joints is not None:
-            # 如果当前J2是安全的，也加入种子列表
+            # If current J2 is safe, add to seed list
             if current_joints[1] <= -0.79:  # J2 <= -45°
                 safe_seed_configurations.insert(0, current_joints)
         
-        # 尝试每个种子值配置
+        # Try each seed configuration
         for i, seed_joints in enumerate(safe_seed_configurations):
             try:
-                self.get_logger().info(f'尝试IK种子值 {i+1}/{len(safe_seed_configurations)} - J2: {math.degrees(seed_joints[1]):.1f}°')
+                self.get_logger().debug(f'Trying IK seed {i+1}/{len(safe_seed_configurations)} - J2: {math.degrees(seed_joints[1]):.1f}°')
                 
                 # Create IK request
                 request = GetPositionIK.Request()
@@ -331,7 +331,7 @@ class PositionController(RobotConnectionBase):
                 request.ik_request.group_name = self._planning_group
                 request.ik_request.ik_link_name = self._end_effector_link
                 request.ik_request.avoid_collisions = True
-                request.ik_request.timeout = Duration(sec=3)  # 每次尝试短一点
+                request.ik_request.timeout = Duration(sec=3)  # Shorter timeout per attempt
                 
                 # Set target pose
                 pose_stamped = PoseStamped()
@@ -362,43 +362,43 @@ class PositionController(RobotConnectionBase):
                                 self.get_logger().error(f'Joint {joint_name} not found in IK solution')
                                 continue
                         
-                        # 验证并修正J2角度（基于机械臂几何形状判断）
+                        # Validate and correct J2 angle (based on arm geometry)
                         if len(solution_joints) == 6:
-                            j2_angle = solution_joints[1]  # J2是第2个关节
-                            j3_angle = solution_joints[2]  # J3是第3个关节
+                            j2_angle = solution_joints[1]  # J2 is 2nd joint
+                            j3_angle = solution_joints[2]  # J3 is 3rd joint
                             
-                            # 检查机械臂是否向下凹（J3不向上突出）
-                            # 当J2+J3的组合导致肘部向下时，需要重新计算
+                            # Check if arm is concave down (elbow drooping)
+                            # When J2+J3 combination causes elbow down, need recalculation
                             is_elbow_down = self.arm_geometry.is_arm_concave_down(j2_angle, j3_angle)
                             
                             if not is_elbow_down:
-                                # 机械臂形状正常（肘部向上突出），直接返回
-                                self.get_logger().info(f'✅ 找到合适IK解 (种子值{i+1}) - J2: {math.degrees(j2_angle):.1f}°, J3: {math.degrees(j3_angle):.1f}° (肘部向上)')
+                                # Arm shape normal (elbow up), return directly
+                                self.get_logger().debug(f'Found suitable IK solution (seed {i+1}) - J2: {math.degrees(j2_angle):.1f}°, J3: {math.degrees(j3_angle):.1f}° (elbow up)')
                                 return solution_joints
                             else:
-                                # 机械臂向下凹，尝试几何变换修正
-                                self.get_logger().info(f'⚠️ 检测到机械臂向下凹 - J2: {math.degrees(j2_angle):.1f}°, J3: {math.degrees(j3_angle):.1f}°, 尝试几何变换')
+                                # Arm concave down, try geometric transformation
+                                self.get_logger().debug(f'Detected arm concave down - J2: {math.degrees(j2_angle):.1f}°, J3: {math.degrees(j3_angle):.1f}°, trying geometric transform')
                                 corrected_joints = self.arm_geometry.correct_joint_configuration(solution_joints.copy())
                                 if corrected_joints is not None:
-                                    # 再次检查修正后的配置
+                                    # Check corrected configuration again
                                     corrected_j2 = corrected_joints[1]
                                     corrected_j3 = corrected_joints[2]
                                     if not self.arm_geometry.is_arm_concave_down(corrected_j2, corrected_j3):
-                                        self.get_logger().info(f'✅ 通过几何变换修正机械臂形状 (种子值{i+1}) - 原始: J2={math.degrees(j2_angle):.1f}°,J3={math.degrees(j3_angle):.1f}° → 修正: J2={math.degrees(corrected_j2):.1f}°,J3={math.degrees(corrected_j3):.1f}°')
+                                        self.get_logger().debug(f'Corrected arm shape via geometric transform (seed {i+1}) - Original: J2={math.degrees(j2_angle):.1f}°,J3={math.degrees(j3_angle):.1f}° → Corrected: J2={math.degrees(corrected_j2):.1f}°,J3={math.degrees(corrected_j3):.1f}°')
                                         return corrected_joints
                                     else:
-                                        self.get_logger().warning(f'几何变换后机械臂仍向下凹，尝试下一个种子值')
+                                        self.get_logger().warning(f'Arm still concave down after geometric transform, trying next seed')
                                         continue
                                 else:
-                                    self.get_logger().warning(f'种子值{i+1}几何变换失败，尝试下一个')
+                                    self.get_logger().warning(f'Seed {i+1} geometric transform failed, trying next')
                                     continue
                 
             except Exception as e:
-                self.get_logger().warning(f'种子值{i+1}求解出错: {e}')
+                self.get_logger().warning(f'Seed {i+1} solve error: {e}')
                 continue
         
-        # 所有种子值都失败了
-        self.get_logger().error('所有IK种子值尝试都失败，无法找到安全解')
+        # All seeds failed
+        self.get_logger().error('All IK seed attempts failed, cannot find safe solution')
         return None
     
     def _execute_joint_solution(self, joint_positions, wait_for_completion=True):
