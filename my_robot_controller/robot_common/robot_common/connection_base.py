@@ -29,9 +29,9 @@ class RobotConnectionBase(Node, ABC):
         
         # Movement parameters
         self._velocity_percentage = 50
-        self._base_angular_velocity = 1.0  # rad/s
-        self._position_tolerance = 0.02    # rad
-        self._goal_time_tolerance = 2.0    # seconds
+        self._base_angular_velocity = 2  # rad/s
+        self._position_tolerance = 0.01    # rad (更精确的位置容差)
+        self._goal_time_tolerance = 10.0    # seconds (更长的超时时间)
         
         # Create action client
         self._action_client = ActionClient(self, action_type, action_name)
