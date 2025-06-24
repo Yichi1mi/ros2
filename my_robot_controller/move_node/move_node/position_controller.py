@@ -291,7 +291,7 @@ class PositionController(RobotConnectionBase):
     
     def _solve_ik(self, target_pose):
         """
-        Solve inverse kinematics for target pose
+        Solve inverse kinematics for target pose with multiple seed attempts
         
         Args:
             target_pose: geometry_msgs.msg.Pose
@@ -299,58 +299,169 @@ class PositionController(RobotConnectionBase):
         Returns:
             list: Joint positions or None if no solution
         """
+        # 定义多个安全的种子值配置，引导求解器找到安全解
+        safe_seed_configurations = [
+            # [J1, J2, J3, J4, J5, J6] - 重点是J2在安全范围内
+            [0.0, -1.57, 0.0, -1.57, 0.0, 0.0],      # 标准配置
+            [-1.57, -1.57, -1.57, -1.57, 1.57, 0.0], # Home配置  
+            [1.57, -1.57, -1.0, -1.57, 0.0, 0.0],    # 右侧配置
+            [0.0, -2.0, -0.5, -1.57, 0.0, 0.0],      # 更低J2角度
+            [0.0, -1.0, -1.5, -1.57, 0.0, 0.0],      # 另一种配置
+        ]
+        
+        # 获取当前关节状态作为额外种子值
+        current_joints = self._state_manager.get_current_joint_positions()
+        if current_joints is not None:
+            # 如果当前J2是安全的，也加入种子列表
+            if current_joints[1] <= -0.79:  # J2 <= -45°
+                safe_seed_configurations.insert(0, current_joints)
+        
+        # 尝试每个种子值配置
+        for i, seed_joints in enumerate(safe_seed_configurations):
+            try:
+                self.get_logger().info(f'尝试IK种子值 {i+1}/{len(safe_seed_configurations)} - J2: {math.degrees(seed_joints[1]):.1f}°')
+                
+                # Create IK request
+                request = GetPositionIK.Request()
+                
+                # Set up the IK request
+                request.ik_request.group_name = self._planning_group
+                request.ik_request.ik_link_name = self._end_effector_link
+                request.ik_request.avoid_collisions = True
+                request.ik_request.timeout = Duration(sec=3)  # 每次尝试短一点
+                
+                # Set target pose
+                pose_stamped = PoseStamped()
+                pose_stamped.header.frame_id = self._planning_frame
+                pose_stamped.header.stamp = self.get_clock().now().to_msg()
+                pose_stamped.pose = target_pose
+                request.ik_request.pose_stamped = pose_stamped
+                
+                # Set seed joint state
+                request.ik_request.robot_state.joint_state.header = pose_stamped.header
+                request.ik_request.robot_state.joint_state.name = self._joint_names
+                request.ik_request.robot_state.joint_state.position = seed_joints
+                
+                # Call IK service
+                future = self._ik_client.call_async(request)
+                rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+                
+                if future.result() is not None:
+                    response = future.result()
+                    if response.error_code.val == MoveItErrorCodes.SUCCESS:
+                        # Extract joint positions from solution
+                        solution_joints = []
+                        for joint_name in self._joint_names:
+                            if joint_name in response.solution.joint_state.name:
+                                idx = response.solution.joint_state.name.index(joint_name)
+                                solution_joints.append(response.solution.joint_state.position[idx])
+                            else:
+                                self.get_logger().error(f'Joint {joint_name} not found in IK solution')
+                                continue
+                        
+                        # 验证并修正J2角度（几何变换）
+                        if len(solution_joints) == 6:
+                            j2_angle = solution_joints[1]  # J2是第2个关节
+                            j3_angle = solution_joints[2]  # J3是第3个关节
+                            
+                            # J2安全范围：-135° 到 -45° (即 -2.36 到 -0.79 弧度)
+                            if -2.36 <= j2_angle <= -0.79:
+                                # J2在安全范围内，直接返回
+                                self.get_logger().info(f'✅ 找到安全IK解 (种子值{i+1}) - J2: {math.degrees(j2_angle):.1f}°')
+                                return solution_joints
+                            else:
+                                # 尝试几何变换修正J2角度
+                                corrected_joints = self._correct_j2_angle(solution_joints.copy())
+                                if corrected_joints is not None:
+                                    self.get_logger().info(f'✅ 通过几何变换修正J2角度 (种子值{i+1}) - 原始: {math.degrees(j2_angle):.1f}° → 修正: {math.degrees(corrected_joints[1]):.1f}°')
+                                    return corrected_joints
+                                else:
+                                    self.get_logger().warning(f'种子值{i+1}的IK解J2角度 {math.degrees(j2_angle):.1f}° 无法修正到安全范围，尝试下一个')
+                                    continue
+                
+            except Exception as e:
+                self.get_logger().warning(f'种子值{i+1}求解出错: {e}')
+                continue
+        
+        # 所有种子值都失败了
+        self.get_logger().error('所有IK种子值尝试都失败，无法找到安全解')
+        return None
+    
+    def _correct_j2_angle(self, joint_solution):
+        """
+        通过几何变换修正J2角度到安全范围
+        利用肩肘关节的平行四边形特性进行肘上/肘下配置转换
+        
+        Args:
+            joint_solution: 原始关节角度解 [J1, J2, J3, J4, J5, J6]
+            
+        Returns:
+            list: 修正后的关节角度，或None如果无法修正
+        """
         try:
-            # Create IK request
-            request = GetPositionIK.Request()
+            j1, j2, j3, j4, j5, j6 = joint_solution
             
-            # Set up the IK request
-            request.ik_request.group_name = self._planning_group
-            request.ik_request.ik_link_name = self._end_effector_link
-            request.ik_request.avoid_collisions = True
-            request.ik_request.timeout = Duration(sec=5)
+            # 安全范围边界
+            j2_upper_limit = -0.79  # -45°
+            j2_lower_limit = -2.36  # -135°
             
-            # Set target pose
-            pose_stamped = PoseStamped()
-            pose_stamped.header.frame_id = self._planning_frame
-            pose_stamped.header.stamp = self.get_clock().now().to_msg()
-            pose_stamped.pose = target_pose
-            request.ik_request.pose_stamped = pose_stamped
+            # 默认值（如果不需要变换）
+            new_j1, new_j2, new_j3, new_j4, new_j5, new_j6 = j1, j2, j3, j4, j5, j6
             
-            # Set current robot state as starting point
-            current_joints = self._state_manager.get_current_joint_positions()
-            if current_joints is None:
+            # 基于余弦定理的正确几何变换
+            L2 = 0.425     # 上臂长度 (Link2)  
+            L3 = 0.39225   # 前臂长度 (Link3)
+            
+            # 计算从J2到腕部的直线距离C
+            # 这需要通过当前的J2和J3角度计算
+            C_squared = L2*L2 + L3*L3 + 2*L2*L3*math.cos(j3)
+            C = math.sqrt(C_squared)
+            
+            # 用余弦定理计算α角 (肘关节的内角)
+            # α = acos((L2² + L3² - C²) / (2 * L2 * L3))
+            cos_alpha = (L2*L2 + L3*L3 - C*C) / (2 * L2 * L3)
+            # 确保在有效范围内
+            cos_alpha = max(-1.0, min(1.0, cos_alpha))
+            alpha = math.acos(cos_alpha)
+            
+            self.get_logger().info(f'几何计算: C={C:.3f}m, α={math.degrees(alpha):.1f}°')
+            
+            # 基于α角的配置转换
+            new_j1 = j1      # 基座不变
+            new_j5 = j5      # 腕关节2保持不变
+            new_j6 = j6      # 腕关节3保持不变
+            
+            # 肘关节的两种配置 - 简单翻转
+            new_j3 = -j3  # J3就是简单翻转
+            
+            # J2根据α角调整
+            if j3 < 0:  # 当前是肘下配置 → 肘上
+                new_j2 = j2 - 2*alpha       # J2相应调整
+                self.get_logger().info(f'肘下→肘上配置转换')
+            else:  # 当前是肘上配置 → 肘下
+                new_j2 = j2 + 2*alpha       # J2相应调整
+                self.get_logger().info(f'肘上→肘下配置转换')
+            
+            # J4补偿以保持腕部方向
+            # new_j3 = -j3, 所以 new_j3 - j3 = -j3 - j3 = -2*j3
+            new_j4 = j4 - (-2*j3)  # 补偿J3的变化量
+            new_j4 = j4 + 2*j3     # 简化
+            
+            self.get_logger().info(f'  J2: {math.degrees(j2):.1f}°→{math.degrees(new_j2):.1f}°')
+            self.get_logger().info(f'  J3: {math.degrees(j3):.1f}°→{math.degrees(new_j3):.1f}°')
+            self.get_logger().info(f'  J4: {math.degrees(j4):.1f}°→{math.degrees(new_j4):.1f}°')
+            
+            # 检查修正后的J2是否在安全范围内
+            if j2_lower_limit <= new_j2 <= j2_upper_limit:
+                corrected_solution = [new_j1, new_j2, new_j3, new_j4, new_j5, new_j6]
+                self.get_logger().info(f'✅ UR完整配置转换成功！肘上↔肘下转换完成')
+                return corrected_solution
+            else:
+                self.get_logger().warning(f'几何变换后J2={math.degrees(new_j2):.1f}°仍不在安全范围内')
                 return None
-            
-            request.ik_request.robot_state.joint_state.header = pose_stamped.header
-            request.ik_request.robot_state.joint_state.name = self._joint_names
-            request.ik_request.robot_state.joint_state.position = current_joints
-            
-            # Call IK service
-            future = self._ik_client.call_async(request)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
-            
-            if future.result() is not None:
-                response = future.result()
-                if response.error_code.val == MoveItErrorCodes.SUCCESS:
-                    # Extract joint positions from solution
-                    solution_joints = []
-                    for joint_name in self._joint_names:
-                        if joint_name in response.solution.joint_state.name:
-                            idx = response.solution.joint_state.name.index(joint_name)
-                            solution_joints.append(response.solution.joint_state.position[idx])
-                        else:
-                            self.get_logger().error(f'Joint {joint_name} not found in IK solution')
-                            return None
-                    
-                    self.get_logger().info('IK solution found')
-                    return solution_joints
-                else:
-                    self.get_logger().error(f'IK failed with error: {response.error_code.val}')
-            
-            return None
-            
+                
         except Exception as e:
-            self.get_logger().error(f'Error in IK solving: {e}')
+            self.get_logger().error(f'几何变换出错: {e}')
             return None
     
     def _execute_joint_solution(self, joint_positions, wait_for_completion=True):

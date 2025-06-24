@@ -35,26 +35,32 @@ def main():
             print("=" * 50)
             
             # ========================================
-            # YOUR CODE GOES HERE - 你的代码写在这里
             # ========================================
 
             # Display workspace information
-            print("📋 Workspace Information:")
+            print("📋 圆柱形工作空间信息:")
             workspace_info = robot.get_workspace_info()
             limits = workspace_info['limits']
-            print(f"   Safe X range: {limits['x_min']:.1f} to {limits['x_max']:.1f}m")
-            print(f"   Safe Y range: {limits['y_min']:.1f} to {limits['y_max']:.1f}m") 
-            print(f"   Safe Z range: {limits['z_min']:.1f} to {limits['z_max']:.1f}m")
-            print(f"   Max reach: {workspace_info['max_reach']:.2f}m from origin")
+            print(f"   内半径: {limits['inner_radius']:.2f}m")
+            print(f"   外半径: {limits['outer_radius']:.2f}m") 
+            print(f"   高度范围: {limits['z_min']:.2f}m 到 {limits['z_max']:.2f}m")
+            print(f"   UR5e最大臂展: {workspace_info['max_reach']:.2f}m")
+            print(f"   推荐工作区域:")
+            print(f"     • 水平距离: {limits['recommended_inner_radius']:.2f}m 到 {limits['recommended_outer_radius']:.2f}m")
+            print(f"     • 高度: {limits['recommended_z_min']:.2f}m 到 {limits['recommended_z_max']:.2f}m")
             print()
 
-            # initial home position
-            print("0. 回归home位置")
+            # 0. 先到初始化位置，然后到home位置
+            print("0. 移动到初始化位置（竖直向上）")
+            robot.move_to_initial_position()
+            robot.pause(0.5)
+            
+            print("0.5. 移动到Home位置（工作空间内）")
             robot.move_to_home()
             robot.pause(0.5)   
 
-            print("1. 关节空间运动到位置1")
-            robot.move_to_joint_positions(1.0, -1.0, 0.0, -1.0, 0.0, 0.0)
+            print("1. 关节空间运动测试 - 安全位置")
+            robot.move_to_joint_positions(0.0, -1.57, -1.0, -1.57, 0.0, 0.0)
             robot.pause(0.5)
             
             print("1.5. 测试关节限制处理")
@@ -63,40 +69,45 @@ def main():
             robot.pause(0.5)
 
             print("2. 相对运动测试")
-            robot.move_relative(0.0, 0.0, -0.1)  # 向下10cm
+            robot.move_relative(0.0, 0.0, -0.05)  # 向下5cm
             robot.pause(0.5)              
 
-            print("3. 绝对位置控制 (安全位置)")
-            robot.move_to_position(0.1, 0.2, 0.7, 1.000, 0.000, 0.000, 0.000)
+            print("3. 绝对位置控制 - 推荐工作区域内 (垂直向下)")
+            robot.move_to_position(0.3, 0.3, 0.4, 0.0, 1.0, 0.0, 0.0)  # 45度位置，垂直向下
             robot.pause(0.5)  
 
-            print("4. 绝对位置控制 (安全位置)")
-            robot.move_to_position(0.05, 0.1, 0.8, 1.000, 0.000, 0.000, 0.000)
+            print("4. 绝对位置控制 - 正前方位置 (垂直向下)")
+            robot.move_to_position(0.0, 0.5, 0.3, 0.0, 1.0, 0.0, 0.0)  # 正前方，垂直向下
             robot.pause(0.5)
 
-            print("5. 🧪 测试工作空间边界保护 - 尝试超出X边界")
-            print("   尝试移动到 X=1.0m (超出右边界 0.6m)")
-            robot.move_to_position(1.0, 0.2, 0.7, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            print("5. 🧪 测试圆柱形工作空间边界保护 - 尝试超出外半径")
+            print("   尝试移动到水平距离0.8m的位置 (超出外半径0.75m)")
+            robot.move_to_position(0.8, 0.0, 0.4, 0.0, 1.0, 0.0, 0.0)  # Should be rejected
             robot.pause(0.5)
 
-            print("6. 🧪 测试工作空间边界保护 - 尝试超出Z下边界")
-            print("   尝试移动到 Z=0.1m (低于下边界 0.3m)")
-            robot.move_to_position(0.1, 0.2, 0.1, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            print("6. 🧪 测试工作空间边界保护 - 尝试超出高度上限")
+            print("   尝试移动到 Z=0.9m (超出高度上限 0.8m)")
+            robot.move_to_position(0.3, 0.3, 0.9, 0.0, 1.0, 0.0, 0.0)  # Should be rejected
             robot.pause(0.5)
 
-            print("7. 🧪 测试工作空间边界保护 - 尝试超出最大reach")
-            print("   尝试移动到距离原点1.0m的位置 (超出最大reach 0.85m)")
-            robot.move_to_position(0.7, 0.7, 0.7, 1.000, 0.000, 0.000, 0.000)  # Should be rejected
+            print("7. 🧪 测试工作空间边界保护 - 尝试进入内半径盲区")
+            print("   尝试移动到水平距离0.1m的位置 (小于内半径0.15m)")
+            robot.move_to_position(0.05, 0.05, 0.4, 0.0, 1.0, 0.0, 0.0)  # Should be rejected
             robot.pause(0.5)
 
-            print("8. 回到接近home的位置")
-            robot.move_to_position(0.01, 0.19, 0.7, 1.000, 0.000, 0.000, 0.000)
+            print("8. 🧪 测试高度下限")
+            print("   尝试移动到 Z=-0.2m (低于下限 -0.1m)")
+            robot.move_to_position(0.3, 0.3, -0.2, 0.0, 1.0, 0.0, 0.0)  # Should be rejected
             robot.pause(0.5)
             
-            print("9. 回到home位置")
+            print("9. 回到Home位置")
             robot.move_to_home()
+            robot.pause(0.5)
             
-            print("=== 工作空间安全测试完成 ===")
+            print("10. 最后回到初始化位置")
+            robot.move_to_initial_position()
+            
+            print("=== 圆柱形工作空间安全测试完成 ===")
             
         except KeyboardInterrupt:
             print("User interrupted")

@@ -18,19 +18,28 @@ class RobotArmController:
     def __init__(self):
         self.joint_controller = JointController()
         self.position_controller = PositionController()
-        self.HOME_POSITION = [0.0, -1.57, 0.0, -1.57, 0.0, 0.0]
+        
+        # 定义机械臂姿态
+        self.INITIAL_POSITION = [0.0, -1.57, 0.0, -1.57, 0.0, 0.0]  # 竖直向上，初始化用
+        self.HOME_POSITION = [-1.57, -1.57, -1.57, -1.57, 1.57, 0.0]  # 工作空间内的家位置
         self._pause_between_movements = 0.5  # Default pause in seconds
         
-        # Define safe workspace boundaries (in meters)
-        # Based on UR5 specs: 850mm reach, home at (0.001, 0.191, 1.001)
+        # Define safe workspace boundaries (in meters) - Cylindrical workspace for UR5e
+        # Based on UR5e specs: 850mm max reach, base height ~163mm
         self.WORKSPACE_LIMITS = {
-            'x_min': -0.6,    # Left limit
-            'x_max': +0.6,    # Right limit  
-            'y_min': -0.3,    # Back limit (closer to base)
-            'y_max': +0.8,    # Front limit (further from base)
-            'z_min': 0.3,     # Lower limit (avoid table collision)
-            'z_max': 1.2      # Upper limit (avoid overextension)
+            # Cylindrical workspace parameters
+            'inner_radius': 0.15,    # 内半径15cm - 避免基座附近盲区
+            'outer_radius': 0.75,    # 外半径75cm - 安全的最大半径 (< 85cm max reach)
+            'z_min': -0.10,          # 最低高度 - 基座下方10cm (桌面操作)
+            'z_max': 0.80,           # 最高高度 - 基座上方80cm (避免过度伸展)
+            
+            # 推荐的高效工作区域
+            'recommended_inner_radius': 0.20,  # 推荐内半径20cm
+            'recommended_outer_radius': 0.65,  # 推荐外半径65cm
+            'recommended_z_min': 0.10,         # 推荐最低高度10cm
+            'recommended_z_max': 0.60,         # 推荐最高高度60cm
         }
+        
 
     def is_connected(self):
         """Check if robot is connected."""
@@ -38,58 +47,69 @@ class RobotArmController:
 
     def _is_position_safe(self, x, y, z):
         """
-        Check if target position is within safe workspace boundaries.
+        Check if target position is within safe cylindrical workspace boundaries.
         :param x, y, z: Target position coordinates in meters
         :return: (is_safe: bool, error_message: str)
         """
         errors = []
         
-        # Check X boundaries
-        if x < self.WORKSPACE_LIMITS['x_min']:
-            errors.append(f"X={x:.3f}m exceeds left limit ({self.WORKSPACE_LIMITS['x_min']:.1f}m)")
-        elif x > self.WORKSPACE_LIMITS['x_max']:
-            errors.append(f"X={x:.3f}m exceeds right limit ({self.WORKSPACE_LIMITS['x_max']:.1f}m)")
-            
-        # Check Y boundaries  
-        if y < self.WORKSPACE_LIMITS['y_min']:
-            errors.append(f"Y={y:.3f}m exceeds back limit ({self.WORKSPACE_LIMITS['y_min']:.1f}m)")
-        elif y > self.WORKSPACE_LIMITS['y_max']:
-            errors.append(f"Y={y:.3f}m exceeds front limit ({self.WORKSPACE_LIMITS['y_max']:.1f}m)")
-            
-        # Check Z boundaries
-        if z < self.WORKSPACE_LIMITS['z_min']:
-            errors.append(f"Z={z:.3f}m exceeds lower limit ({self.WORKSPACE_LIMITS['z_min']:.1f}m)")
-        elif z > self.WORKSPACE_LIMITS['z_max']:
-            errors.append(f"Z={z:.3f}m exceeds upper limit ({self.WORKSPACE_LIMITS['z_max']:.1f}m)")
+        # Calculate horizontal distance from base center (cylindrical coordinates)
+        horizontal_distance = math.sqrt(x*x + y*y)
         
-        # Check distance from origin (additional safety check)
-        distance_from_origin = math.sqrt(x*x + y*y + z*z)
-        max_safe_distance = 0.85  # UR5 max reach is 850mm, use full range
-        if distance_from_origin > max_safe_distance:
-            errors.append(f"Distance from origin {distance_from_origin:.3f}m exceeds max reach ({max_safe_distance:.2f}m)")
+        # Check Z boundaries (height limits)
+        if z < self.WORKSPACE_LIMITS['z_min']:
+            errors.append(f"高度Z={z:.3f}m低于最低限制 ({self.WORKSPACE_LIMITS['z_min']:.2f}m)")
+        elif z > self.WORKSPACE_LIMITS['z_max']:
+            errors.append(f"高度Z={z:.3f}m超出最高限制 ({self.WORKSPACE_LIMITS['z_max']:.2f}m)")
+        
+        # Check cylindrical boundaries
+        if horizontal_distance < self.WORKSPACE_LIMITS['inner_radius']:
+            errors.append(f"水平距离{horizontal_distance:.3f}m小于内半径限制 ({self.WORKSPACE_LIMITS['inner_radius']:.2f}m)")
+        elif horizontal_distance > self.WORKSPACE_LIMITS['outer_radius']:
+            errors.append(f"水平距离{horizontal_distance:.3f}m超出外半径限制 ({self.WORKSPACE_LIMITS['outer_radius']:.2f}m)")
+        
+        # Additional 3D distance check (total reach limit)
+        total_distance = math.sqrt(x*x + y*y + z*z)
+        absolute_max_reach = 0.85  # UR5e absolute maximum reach
+        if total_distance > absolute_max_reach:
+            errors.append(f"总距离{total_distance:.3f}m超出UR5e最大臂展 ({absolute_max_reach:.2f}m)")
+        
+        # Check if in recommended zone (warning, not error)
+        in_recommended_zone = (
+            self.WORKSPACE_LIMITS['recommended_inner_radius'] <= horizontal_distance <= self.WORKSPACE_LIMITS['recommended_outer_radius'] and
+            self.WORKSPACE_LIMITS['recommended_z_min'] <= z <= self.WORKSPACE_LIMITS['recommended_z_max']
+        )
         
         if errors:
-            error_msg = "🚫 WORKSPACE SAFETY VIOLATION:\n" + "\n".join(f"   • {error}" for error in errors)
+            error_msg = "🚫 圆柱形工作空间安全违规:\n" + "\n".join(f"   • {error}" for error in errors)
             return False, error_msg
+        elif not in_recommended_zone:
+            # Position is safe but outside recommended zone
+            print(f"⚠️  位置在安全区域但超出推荐工作区域 (水平距离: {horizontal_distance:.3f}m, 高度: {z:.3f}m)")
         
         return True, ""
 
     def get_workspace_info(self):
         """
-        Get workspace boundary information.
+        Get cylindrical workspace boundary information.
         :return: dict with workspace limits and current position info
         """
         info = {
             'limits': self.WORKSPACE_LIMITS.copy(),
-            'max_reach': 0.85
+            'max_reach': 0.85,
+            'workspace_type': 'cylindrical'
         }
         
         # Add current position if available
         current_pos = self.get_current_position()
         if current_pos:
             x, y, z = current_pos[:3]
+            horizontal_distance = math.sqrt(x*x + y*y)
+            total_distance = math.sqrt(x*x + y*y + z*z)
+            
             info['current_position'] = {'x': x, 'y': y, 'z': z}
-            info['current_distance_from_origin'] = math.sqrt(x*x + y*y + z*z)
+            info['current_horizontal_distance'] = horizontal_distance
+            info['current_total_distance'] = total_distance
             is_safe, _ = self._is_position_safe(x, y, z)
             info['current_position_safe'] = is_safe
         
@@ -103,11 +123,20 @@ class RobotArmController:
         """
         angles = [j1, j2, j3, j4, j5, j6]
         
-        # Check joint limits for UR5 (in radians)
-        # UR5 joint limits: ±360° for most joints, some have different limits
+        # 检查是否是初始化位置，如果是则跳过工作空间检查
+        if angles == self.INITIAL_POSITION:
+            print(f"🔧 移动到初始化位置，跳过工作空间检查")
+            success = self.joint_controller.move_to_joint_positions(angles)
+            if success and self._pause_between_movements > 0:
+                import time
+                time.sleep(self._pause_between_movements)
+            return success
+        
+        # Check joint limits for UR5 (in radians) - 包含防撞地面限制
+        # 特别注意：J2关节限制在-135°到-45°，防止撞地面
         joint_limits = [
             (-2*math.pi, 2*math.pi),     # J1: ±360°
-            (-2*math.pi, 2*math.pi),     # J2: ±360°  
+            (-2.36, -0.79),              # J2: -135° 到 -45° (防撞地面)
             (-math.pi, math.pi),         # J3: ±180°
             (-2*math.pi, 2*math.pi),     # J4: ±360°
             (-2*math.pi, 2*math.pi),     # J5: ±360°
@@ -146,15 +175,18 @@ class RobotArmController:
         :param qx, qy, qz, qw: Orientation quaternion
         :return: True if successful
         """
-        # Safety check: validate workspace boundaries
+        # Safety check: validate cylindrical workspace boundaries
         is_safe, error_msg = self._is_position_safe(x, y, z)
         if not is_safe:
             print(error_msg)
-            print(f"💡 Safe workspace limits:")
-            print(f"   X: {self.WORKSPACE_LIMITS['x_min']:.1f} to {self.WORKSPACE_LIMITS['x_max']:.1f}m")
-            print(f"   Y: {self.WORKSPACE_LIMITS['y_min']:.1f} to {self.WORKSPACE_LIMITS['y_max']:.1f}m")
-            print(f"   Z: {self.WORKSPACE_LIMITS['z_min']:.1f} to {self.WORKSPACE_LIMITS['z_max']:.1f}m")
-            print(f"   Max reach: 0.85m from origin")
+            print(f"💡 圆柱形安全工作空间:")
+            print(f"   内半径: {self.WORKSPACE_LIMITS['inner_radius']:.2f}m")
+            print(f"   外半径: {self.WORKSPACE_LIMITS['outer_radius']:.2f}m") 
+            print(f"   高度范围: {self.WORKSPACE_LIMITS['z_min']:.2f}m 到 {self.WORKSPACE_LIMITS['z_max']:.2f}m")
+            print(f"   UR5e最大臂展: 0.85m")
+            print(f"   推荐工作区域:")
+            print(f"     • 水平距离: {self.WORKSPACE_LIMITS['recommended_inner_radius']:.2f}m 到 {self.WORKSPACE_LIMITS['recommended_outer_radius']:.2f}m")
+            print(f"     • 高度: {self.WORKSPACE_LIMITS['recommended_z_min']:.2f}m 到 {self.WORKSPACE_LIMITS['recommended_z_max']:.2f}m")
             return False
         
         print(f"✅ Position within safe workspace")
@@ -206,9 +238,20 @@ class RobotArmController:
             
         return success
 
+    def move_to_initial_position(self):
+        """
+        移动到初始化位置（竖直向上）
+        这个方法用于机械臂启动时的初始化，跳过工作空间检查
+        """
+        print("🔧 移动到初始化位置（竖直向上）")
+        return self.move_to_joint_positions(*self.INITIAL_POSITION)
+
     def move_to_home(self):
-        """Move to home position."""
-        print("Moving to home position")
+        """
+        移动到Home位置（工作空间内的安全位置）
+        这个位置在安全工作空间内，适合作为工作的起始点
+        """
+        print("🏠 移动到Home位置")
         return self.move_to_joint_positions(*self.HOME_POSITION)
     
     def pause(self, duration):
