@@ -107,13 +107,13 @@ def main(args=None):
         success = test_node.run_movement_test()
         
         if success:
-            print("\n✅ Test completed successfully!")
+            print("\nTest completed successfully!")
             print("\nNext steps:")
             print("1. Connect a USB camera")
             print("2. Run: ros2 run vision_node camera_node")
             print("3. Run: ros2 run vision_node vision_demo")
         else:
-            print("\n❌ Test failed!")
+            print("\nTest failed!")
         
     except KeyboardInterrupt:
         print("\nTest interrupted by user")
