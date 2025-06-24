@@ -50,7 +50,6 @@ docker exec -it robot_simulation_env bash
 # 在新Docker终端内
 cd /home/xichen/robot_ws
 source /opt/ros/humble/setup.bash
-source /root/ros2_ws/install/setup.bash
 source install/setup.bash
 ros2 run main_controller main_controller
 ```
