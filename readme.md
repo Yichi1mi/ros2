@@ -23,12 +23,12 @@ robot_ws/src/
 cd /home/xichen/robot_ws
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install
-source install/setup.bash
 ```
 
 ### 2. Launch Simulation Environment
 ```bash
 # Launch complete simulation environment (Gazebo + MoveIt2)
+source install/setup.bash
 ros2 launch ur_simulation_gazebo ur_sim_moveit.launch.py
 ```
 
@@ -36,9 +36,11 @@ ros2 launch ur_simulation_gazebo ur_sim_moveit.launch.py
 ```bash
 cd /home/xichen/robot_ws
 source /opt/ros/humble/setup.bash
-source install/setup.bash
+colcon build --symlink-install
+
 
 # Launch main controller
+source install/setup.bash
 ros2 run main_controller main_controller
 ```
 
