@@ -26,6 +26,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'vision_api_test = vision_node.vision_api:main',
+            'object_detector = vision_node.object_detector:main',
+            'position_detector_test = vision_node.position_detector_test:main',
         ],
     },
 )

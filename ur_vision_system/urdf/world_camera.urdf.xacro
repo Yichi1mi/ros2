@@ -1,0 +1,86 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="world_camera">
+
+    <link name="world"/>
+
+    <!-- 相机基座 - 固定但可在GUI中调整 -->
+    <joint name="world_camera_joint" type="fixed">
+        <parent link="world" />
+        <child link="world_camera_link" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+    </joint>
+
+    <link name="world_camera_link">
+        <!-- 相机主体 - 梯台形状 -->
+        <visual name="camera_body">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry><box size="0.08 0.06 0.04"/></geometry>
+            <material name="grey">
+                <color rgba="0.5 0.5 0.5 1"/>
+            </material>
+        </visual>
+        
+        <!-- 镜头部分 - 朝向指示 -->
+        <visual name="camera_lens">
+            <origin xyz="0 0 -0.025" rpy="0 0 0"/>
+            <geometry><cylinder radius="0.015" length="0.01"/></geometry>
+            <material name="blue">
+                <color rgba="0 0 1 1"/>
+            </material>
+        </visual>
+        
+        <!-- 朝向箭头 - 红色指示相机朝向 -->
+        <visual name="direction_arrow">
+            <origin xyz="0 0 -0.04" rpy="0 0 0"/>
+            <geometry><box size="0.02 0.02 0.02"/></geometry>
+            <material name="red">
+                <color rgba="1 0 0 1"/>
+            </material>
+        </visual>
+        
+        <collision>
+            <geometry><box size="0.08 0.06 0.04"/></geometry>
+        </collision>
+        <inertial>
+            <mass value="0.1" />
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001" />
+        </inertial>
+    </link>
+
+    <!-- 光学框架 (必需) -->
+    <joint name="camera_optical_joint" type="fixed">
+        <origin xyz="0 0 0" rpy="-1.5708 0 -1.5708" />
+        <parent link="world_camera_link" />
+        <child link="world_camera_optical_frame" />
+    </joint>
+    <link name="world_camera_optical_frame"></link>
+
+    <!-- Gazebo插件配置 -->
+    <gazebo reference="world_camera_link">
+        <sensor type="depth" name="world_camera_depth_sensor">
+            <always_on>true</always_on>
+            <update_rate>30.0</update_rate>
+            <visualize>true</visualize>
+            <camera>
+                <horizontal_fov>1.047198</horizontal_fov>
+                <image>
+                    <width>640</width>
+                    <height>480</height>
+                    <format>R8G8B8</format>
+                </image>
+                <clip>
+                    <near>0.05</near>
+                    <far>10</far>
+                </clip>
+            </camera>
+            <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+                <ros>
+                    <namespace>world_camera</namespace>
+                </ros>
+                <camera_name>world_camera</camera_name>
+                <frame_name>world_camera_optical_frame</frame_name>
+            </plugin>
+        </sensor>
+    </gazebo>
+</robot>

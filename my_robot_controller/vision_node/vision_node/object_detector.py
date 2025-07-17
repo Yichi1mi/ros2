@@ -19,7 +19,7 @@ class ObjectDetector(VisionBase):
         super().__init__('object_detector')
         
         # Subscribe to camera images
-        self._image_sub = self._create_image_subscriber('/camera/image_raw')
+        self._image_sub = self._create_image_subscriber('/world_camera/world_camera/image_raw')
         
         # Publishers
         self._detection_pub = self._create_image_publisher('/vision/detection_image')

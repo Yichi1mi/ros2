@@ -1,13 +1,14 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>my_robot_cell</name>
+  <name>ur_vision_system</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Environment configuration package for adding fixed camera to UR Gazebo simulation</description>
   <maintainer email="x93hu@uwaterloo.ca">xichen</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
 
-  <depend>rclpy</depend>
+  <depend>gazebo_ros</depend>
+  <depend>ur_simulation_gazebo</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
