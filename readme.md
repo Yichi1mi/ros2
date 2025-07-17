@@ -1,6 +1,6 @@
 # UR5e Intelligent Robot Vision Control System
 
-**Language**: [English](README.md) | [中文](README.zh.md)
+**Language**: [English](readme.md) | [中文](readme.zh.md)
 
 ## Project Overview
 This is a UR5e robotic arm intelligent control system based on ROS2, integrating MoveIt2 motion planning, Gazebo physics simulation, computer vision, and custom controllers. The system adopts a modular design, supporting precise control in both joint space and Cartesian space, with real-time object detection and automated grasping capabilities.
