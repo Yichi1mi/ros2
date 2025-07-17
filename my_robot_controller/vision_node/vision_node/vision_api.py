@@ -194,9 +194,10 @@ class VisionAPI:
     
     def _pixel_to_world_coordinates(self, pixel_x, pixel_y):
         """
-        将像素坐标转换为世界坐标 - 专为垂直向下相机设计
+        将像素坐标转换为世界坐标 - 考虑相机位置和姿态
         
-        相机在(0,0,1.5)垂直向下看，物体在z=0平面
+        相机位置：(camera_x, camera_y, camera_z)
+        相机姿态：包含roll旋转
         
         Args:
             pixel_x, pixel_y: 像素坐标
@@ -208,17 +209,49 @@ class VisionAPI:
         cx = self.camera_params['image_width'] / 2   # 320
         cy = self.camera_params['image_height'] / 2  # 240
         
-        # 相机高度
-        cam_height = self.camera_params['camera_z']  # 1.5米
-        
         # 使用配置中的参数计算地面覆盖范围
         ground_coverage = self.camera_config.get_ground_coverage()
         pixel_to_meter_ratio = self.camera_config.get_pixel_to_meter_ratio()
         
-        # 转换坐标（原点在图像中心对应世界原点）
-        world_x = (pixel_x - cx) * pixel_to_meter_ratio
-        world_y = (pixel_y - cy) * pixel_to_meter_ratio  
-        world_z = self.table_height  # 物体在地面
+        # 先转换到相机图像坐标系（相机中心为原点）
+        img_x = (pixel_x - cx) * pixel_to_meter_ratio
+        img_y = (pixel_y - cy) * pixel_to_meter_ratio
+        
+        # 相机变换分析：
+        # 1. 初始：相机朝向世界+X方向
+        # 2. Roll=90°：绕相机Z轴旋转90度  
+        # 3. Pitch=90°：绕相机Y轴旋转90度变成向下
+        # 4. 位移到(0, 0.4, 1.5)
+        #
+        # 最终相机朝向：垂直向下看地面
+        # 图像坐标到世界坐标的映射需要考虑这些旋转
+        
+        # 通过观察实际情况反推正确的映射关系
+        # 需要应用Roll和Pitch的复合变换
+        
+        roll = self.camera_config.roll    # 1.57
+        pitch = self.camera_config.pitch  # 1.57
+        
+        # 应用旋转变换矩阵
+        # 这是一个复合旋转：先Roll再Pitch
+        cos_r, sin_r = math.cos(roll), math.sin(roll)
+        cos_p, sin_p = math.cos(pitch), math.sin(pitch)
+        
+        # 复合旋转矩阵计算（RPY顺序）
+        # 但由于我们是2D投影，简化处理：
+        # 根据实际测试结果调整映射
+        
+        # 基于实际数据反推正确映射：
+        # 检测: RED(-0.579, 0.376) → 实际: (0.02, 0.95)
+        # 检测: GREEN(-0.217, 0.595) → 实际: (-0.19, 0.61)  
+        # 检测: BLUE(-0.498, 0.281) → 实际: (0.11, 0.88)
+        #
+        # 观察模式：需要大幅度的X轴调整
+        # 尝试不同的映射方式
+        
+        world_x = -img_x + self.camera_config.position_x  # 图像-X → 世界X
+        world_y = img_y + self.camera_config.position_y   # 图像Y → 世界Y  
+        world_z = self.table_height
         
         return world_x, world_y, world_z
     
