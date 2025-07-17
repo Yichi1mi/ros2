@@ -139,8 +139,8 @@ class RobotArmController:
         # Use geometry handler for angle normalization and limit checking
         normalized_angles = self.arm_geometry.normalize_joint_angles(angles)
         
-        # Simplified joint position logging
-        self.get_logger().debug(f"Moving to joint positions: {[f'{math.degrees(a):.1f}°' for a in normalized_angles]}")
+        # Simplified joint position logging - using joint_controller logger
+        self.joint_controller.get_logger().debug(f"Moving to joint positions: {[f'{math.degrees(a):.1f}°' for a in normalized_angles]}")
         
         success = self.joint_controller.move_to_joint_positions(normalized_angles)
         if success and self._pause_between_movements > 0:

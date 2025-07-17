@@ -22,7 +22,8 @@ class UR5ArmGeometry:
             'j1': (-math.pi, math.pi),            # J1: ±180
             'j2': (-math.pi, 0),                  # J2: -180° 到 0°
             'j3': (-math.pi, math.pi),            # J3: ±180°
-            'j4': (-1.5*math.pi, 0.5*math.pi),    # J4: -270° 到 90°
+            # 'j4': (-1.5*math.pi, 0.5*math.pi),    # J4: -270° 到 90°
+            'j4': (-math.pi, 0),                  # J4: -180° 到 0°
             'j5': (-math.pi, math.pi),            # J5: ±180
             'j6': (-math.pi, math.pi),            # J6: ±180
         }
