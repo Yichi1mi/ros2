@@ -16,13 +16,13 @@ class CameraConfig:
     
     # == 物理位置 ==
     position_x: float = 0.0      # 相机世界坐标X (米)
-    position_y: float = 0.0      # 相机世界坐标Y (米)  
+    position_y: float = 0.5      # 相机世界坐标Y (米)  
     position_z: float = 1.5      # 相机世界坐标Z (米)
     
     # == 姿态角度 ==
-    roll: float = 0.0            # Roll角 (弧度)
-    pitch: float = 1.5708        # Pitch角 (弧度，1.5708=90度垂直向下)
-    yaw: float = 0.0             # Yaw角 (弧度)
+    roll: float = 1.5708         # Roll
+    pitch: float = 1.5708        # Pitch
+    yaw: float = 0.0             # Yaw
     
     # == 图像参数 ==
     image_width: int = 640       # 图像宽度 (像素)
