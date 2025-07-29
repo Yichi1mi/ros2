@@ -194,9 +194,9 @@ class VisionAPI:
     
     def _pixel_to_world_coordinates(self, pixel_x, pixel_y):
         """
-        将像素坐标转换为世界坐标 - 专为垂直向下相机设计
+        将像素坐标转换为世界坐标 - 相机垂直向下看
         
-        相机在(0,0,1.5)垂直向下看，物体在z=0平面
+        相机在(camera_x, camera_y, camera_z)位置垂直向下看，yaw=0无旋转
         
         Args:
             pixel_x, pixel_y: 像素坐标
@@ -208,16 +208,12 @@ class VisionAPI:
         cx = self.camera_params['image_width'] / 2   # 320
         cy = self.camera_params['image_height'] / 2  # 240
         
-        # 相机高度
-        cam_height = self.camera_params['camera_z']  # 1.5米
-        
         # 使用配置中的参数计算地面覆盖范围
-        ground_coverage = self.camera_config.get_ground_coverage()
         pixel_to_meter_ratio = self.camera_config.get_pixel_to_meter_ratio()
         
-        # 转换坐标（原点在图像中心对应世界原点）
-        world_x = (pixel_x - cx) * pixel_to_meter_ratio
-        world_y = (pixel_y - cy) * pixel_to_meter_ratio  
+        # 像素坐标转换为世界坐标（相机位置+像素偏移，X轴需要反向）
+        world_x = self.camera_params['camera_x'] - (pixel_x - cx) * pixel_to_meter_ratio  # X轴反向
+        world_y = self.camera_params['camera_y'] + (pixel_y - cy) * pixel_to_meter_ratio  
         world_z = self.table_height  # 物体在地面
         
         return world_x, world_y, world_z

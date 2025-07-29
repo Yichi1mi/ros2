@@ -7,24 +7,31 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     package_dir = get_package_share_directory('ur_vision_system')
+
+    try:
+        from robot_common.camera_config import get_camera_config
+        camera_config = get_camera_config()
+        camera_x = camera_config.position_x
+        camera_y = camera_config.position_y
+    except ImportError:
+        camera_x = 0.5
+        camera_y = 0.0
     
-    # 定义物体模型路径
     models = {
         'red_cylinder': os.path.join(package_dir, 'models', 'test_cylinder', 'model.sdf'),
         'green_box': os.path.join(package_dir, 'models', 'test_box', 'model.sdf'),
         'blue_prism': os.path.join(package_dir, 'models', 'test_prism', 'model.sdf')
     }
     
-    # 随机生成位置 (-1到1米范围)
+    # 以相机位置为中心，在机器人工作范围内随机生成位置
     positions = []
     for i in range(3):
-        x = round(random.uniform(-0.4, 0.4), 2)
-        y = round(random.uniform(-0.4, 0.4), 2)
+        x = round(camera_x + random.uniform(-0.3, 0.2), 2)
+        y = round(camera_y - 0.1 + random.uniform(-0.15, 0.15), 2)
         positions.append((x, y))
     
     print(f"Spawning objects at positions: {positions}")
     
-    # 创建spawn节点
     spawn_nodes = []
     
     # 红色圆柱体
